@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+.Python
+*.so
+
+# Virtual Environment
+venv/
+ENV/
+env/
+
+# Telegram sessions
+sessions/
+*.session
+*.session-journal
+
+# Database
+*.db
+
+# Environment variables
+.env
+
+# Logs
+*.log
+
+# IDE
+.vscode/
+.idea/
+
+# OS specific
+.DS_Store
+Thumbs.db 
