@@ -8,7 +8,7 @@ A sophisticated Telegram bot that leverages Telegram's native video processing c
 
 ## 🤖 Try the Bot
 
-You can find and interact with the bot at: **[@videoresbot](https://t.me/videoresbot)**
+You can find and interact with the bot at: **[@VideoResBot](https://t.me/videoresbot)**
 
 Simply send a video file to get started with automatic quality enhancement!
 
