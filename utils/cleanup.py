@@ -217,7 +217,7 @@ async def check_video_timeout(transfer_msg_id: int, user_id: int, scheduled_msg_
     time_diff = (current_time - timestamp).total_seconds()
     
     if time_diff > Config.VIDEO_TIMEOUT:
-        from handlers.video import handle_video_timeout
+        from utils.video_processor import handle_video_timeout
         await handle_video_timeout(transfer_msg_id, user_id, scheduled_msg_id, time_diff)
         return True
     return False 
