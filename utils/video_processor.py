@@ -159,7 +159,9 @@ async def handle_processed_video(transfer_msg_id: int, processed_junk_msg: Messa
 
     # --- Reporting --- 
     try:
-        processing_time_min = (datetime.now() - timestamp).total_seconds() / 60
+        # Safe timestamp conversion
+        timestamp_dt = safe_timestamp_to_datetime(timestamp)
+        processing_time_min = (datetime.now() - timestamp_dt).total_seconds() / 60
         # Use height from the processed junk message
         estimated_time_min = calculate_processing_time(duration, processed_junk_msg.video.height)
         
@@ -186,6 +188,11 @@ async def handle_processed_video(transfer_msg_id: int, processed_junk_msg: Messa
 
     except Exception as report_err:
         logger.error(f"[❌] Error calculating/sending admin report for {transfer_msg_id}: {report_err}")
+        # Send critical error notification for reporting errors
+        try:
+            await notify_admin_critical_error(str(report_err), f"Admin report error for TID {transfer_msg_id}")
+        except:
+            pass
         
     # --- Cleanup (ALWAYS runs) --- 
     finally:
@@ -202,8 +209,13 @@ async def handle_processed_video(transfer_msg_id: int, processed_junk_msg: Messa
             
         except Exception as cleanup_err:
             logger.error(f"[❌] Error during final cleanup for {transfer_msg_id} after polling: {cleanup_err}")
+            # Send critical error notification for cleanup errors
+            try:
+                await notify_admin_critical_error(str(cleanup_err), f"Final cleanup error for TID {transfer_msg_id}")
+            except:
+                pass
 
-async def handle_video_timeout(transfer_msg_id: int, user_id: int, scheduled_msg_id: int, timestamp: datetime) -> None:
+async def handle_video_timeout(transfer_msg_id: int, user_id: int, scheduled_msg_id: int, timestamp) -> None:
     """Handles a video that has timed out based on tracking info in State."""
     
     logger.warning(f"[⏰] Handling timeout for Transfer ID: {transfer_msg_id}")
@@ -215,7 +227,10 @@ async def handle_video_timeout(transfer_msg_id: int, user_id: int, scheduled_msg
 
     user_or_channel_data = State.user_videos.get(transfer_msg_id)
     is_channel_post = isinstance(user_or_channel_data, tuple)
-    time_diff_min = (datetime.now() - timestamp).total_seconds() / 60
+    
+    # Safe timestamp conversion
+    timestamp_dt = safe_timestamp_to_datetime(timestamp)
+    time_diff_min = (datetime.now() - timestamp_dt).total_seconds() / 60
 
     try:
         if is_channel_post:
@@ -236,6 +251,11 @@ async def handle_video_timeout(transfer_msg_id: int, user_id: int, scheduled_msg
 
     except Exception as notify_err:
         logger.error(f"[❌] Error notifying user/admin about timeout for {transfer_msg_id}: {notify_err}")
+        # Send critical error notification for timeout handling errors
+        try:
+            await notify_admin_critical_error(str(notify_err), f"Timeout notification error for TID {transfer_msg_id}")
+        except:
+            pass
     finally:
         # Always attempt cleanup
         try:
@@ -243,6 +263,11 @@ async def handle_video_timeout(transfer_msg_id: int, user_id: int, scheduled_msg
             clean_up_tracking_info(transfer_msg_id, user_or_channel_data)
         except Exception as cleanup_err:
             logger.error(f"[❌] Error during cleanup after timeout for {transfer_msg_id}: {cleanup_err}")
+            # Send critical error notification for timeout cleanup errors
+            try:
+                await notify_admin_critical_error(str(cleanup_err), f"Timeout cleanup error for TID {transfer_msg_id}")
+            except:
+                pass
 
 async def edit_channel_message_with_processed_video(channel_id: int, message_id: int, processed_msg: Message) -> None:
     """Edits the original channel message with the processed video that has alternative qualities"""
@@ -295,3 +320,27 @@ async def forward_to_transfer_channel(message: Message) -> Message | None:
     except Exception as e:
         logger.error(f"[❌] Failed to forward message {message.id} to transfer channel: {e}")
         return None
+
+async def notify_admin_critical_error(error_message: str, context: str = "") -> None:
+    """Send critical error notification to admin"""
+    try:
+        if State.bot and Config.ADMIN_ID:
+            full_message = f"🚨 **Critical Error Alert**\n\n"
+            if context:
+                full_message += f"**Context:** {context}\n\n"
+            full_message += f"**Error:** {error_message}"
+            await State.bot.send_message(Config.ADMIN_ID, full_message)
+            logger.info(f"[🚨] Sent critical error notification to admin: {error_message}")
+    except Exception as e:
+        logger.error(f"[❌] Failed to send critical error notification to admin: {e}")
+
+
+def safe_timestamp_to_datetime(timestamp) -> datetime:
+    """Safely convert timestamp to datetime object, handling both float and datetime inputs"""
+    if isinstance(timestamp, datetime):
+        return timestamp
+    elif isinstance(timestamp, (int, float)):
+        return datetime.fromtimestamp(timestamp)
+    else:
+        logger.error(f"[❌] Invalid timestamp type: {type(timestamp)}, value: {timestamp}")
+        return datetime.now()  # Fallback to current time

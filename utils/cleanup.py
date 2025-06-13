@@ -125,6 +125,12 @@ async def process_next_from_queue(entity_id: int, is_channel: bool = False) -> N
             await process_video_handler(State.bot, next_video)
     except Exception as e:
         logger.error(f"[❌] Error processing next video from queue for {'channel' if is_channel else 'user'} {entity_id}: {e}")
+        # Send critical error notification for queue processing errors
+        try:
+            from utils.video_processor import notify_admin_critical_error
+            await notify_admin_critical_error(str(e), f"Queue processing error for {'channel' if is_channel else 'user'} {entity_id}")
+        except:
+            pass
 
 async def cleanup_scheduled_messages() -> None:
     """Deletes all remaining scheduled messages during shutdown."""
@@ -208,17 +214,25 @@ async def run_periodic_cleanup_task():
             break # Exit the loop if cancelled
         except Exception as e:
             logger.error(f"[❌] Error in periodic polling task: {e}", exc_info=True)
+            # Send critical error notification to admin
+            try:
+                from utils.video_processor import notify_admin_critical_error
+                await notify_admin_critical_error(str(e), "Periodic polling task error")
+            except:
+                pass  # Don't let notification failure break the main loop
             # Wait a bit longer before retrying after an error
             await asyncio.sleep(Config.CHECK_INTERVAL * 2) 
 
-async def check_video_timeout(transfer_msg_id: int, user_id: int, scheduled_msg_id: int, timestamp: datetime) -> bool:
+async def check_video_timeout(transfer_msg_id: int, user_id: int, scheduled_msg_id: int, timestamp) -> bool:
     """Checks if a video has timed out and handles it if necessary"""
+    from utils.video_processor import safe_timestamp_to_datetime, handle_video_timeout
+    
     current_time = datetime.now()
-    time_diff = (current_time - timestamp).total_seconds()
+    timestamp_dt = safe_timestamp_to_datetime(timestamp)
+    time_diff = (current_time - timestamp_dt).total_seconds()
     
     if time_diff > Config.VIDEO_TIMEOUT:
-        from utils.video_processor import handle_video_timeout
-        await handle_video_timeout(transfer_msg_id, user_id, scheduled_msg_id, time_diff)
+        await handle_video_timeout(transfer_msg_id, user_id, scheduled_msg_id, timestamp)
         return True
     return False 
 
