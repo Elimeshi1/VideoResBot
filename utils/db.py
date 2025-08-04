@@ -20,6 +20,10 @@ class Database:
             self.conn = sqlite3.connect(self.DB_FILE)
             self.cursor = self.conn.cursor()
             self._create_tables()
+            
+            # Ensure all columns exist in existing tables
+            self._add_ban_columns_to_users()
+            
             logger.info(f"[✅] Database initialized successfully at {os.path.abspath(self.DB_FILE)}")
         except Exception as e:
             logger.error(f"[❌] Database initialization error: {e}")
@@ -42,9 +46,7 @@ class Database:
                 premium_expiry TIMESTAMP,
                 created_at TIMESTAMP,
                 updated_at TIMESTAMP,
-                max_channels INTEGER DEFAULT 1,
-                is_banned BOOLEAN NOT NULL DEFAULT 0,
-                ban_reason TEXT
+                max_channels INTEGER DEFAULT 1
             )
             ''')
             
@@ -59,9 +61,42 @@ class Database:
             )
             ''')
             
+            # Add new columns to existing users table if they don't exist
+            self._add_ban_columns_to_users()
+            
             self.conn.commit()
         except Exception as e:
             logger.error(f"[❌] Error creating database tables: {e}")
+            
+    def _add_ban_columns_to_users(self):
+        """Add ban-related columns to existing users table if they don't exist"""
+        try:
+            # Check if is_banned column exists
+            self.cursor.execute("PRAGMA table_info(users)")
+            columns = [column[1] for column in self.cursor.fetchall()]
+            
+            logger.info(f"[📋] Current users table columns: {columns}")
+            
+            # Add is_banned column if it doesn't exist
+            if 'is_banned' not in columns:
+                self.cursor.execute('''
+                ALTER TABLE users ADD COLUMN is_banned BOOLEAN NOT NULL DEFAULT 0
+                ''')
+                logger.info("[✅] Added is_banned column to users table")
+            else:
+                logger.info("[ℹ️] is_banned column already exists in users table")
+            
+            # Add ban_reason column if it doesn't exist
+            if 'ban_reason' not in columns:
+                self.cursor.execute('''
+                ALTER TABLE users ADD COLUMN ban_reason TEXT
+                ''')
+                logger.info("[✅] Added ban_reason column to users table")
+            else:
+                logger.info("[ℹ️] ban_reason column already exists in users table")
+                
+        except Exception as e:
+            logger.error(f"[❌] Error adding ban columns to users table: {e}")
             
     def _ensure_connection(self) -> bool:
         """Ensure database connection is active, reconnect if needed"""
@@ -75,7 +110,7 @@ class Database:
                 
                 self.conn = sqlite3.connect(self.DB_FILE)
                 self.cursor = self.conn.cursor()
-                self._create_tables()  # Ensure tables exist
+                self._create_tables()  # Ensure tables exist and add new columns
                 logger.info("[🔄] Database connection reestablished")
                 return True
             except Exception as e:
