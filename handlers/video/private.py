@@ -5,7 +5,7 @@ This module handles videos sent by users in private chats.
 """
 
 from pyrogram import Client
-from pyrogram.types import Message
+from pyrogram.types import Message, ReplyKeyboardRemove
 from utils.logger import logger
 from utils.video_utils import calculate_processing_time
 from config.state import State
@@ -69,6 +69,13 @@ async def process_video_handler(client: Client, message: Message) -> None:
     try:
         user_id = message.from_user.id
         user_name = message.from_user.first_name
+        
+        # Check if user is banned
+        is_banned, ban_reason = db.is_user_banned(user_id)
+        if is_banned:
+            logger.warning(f"[🚫] Banned user {user_id} ({user_name}) attempted to send video")
+            await message.reply_text(messages.USER_BANNED(ban_reason), reply_markup=ReplyKeyboardRemove())
+            return
         
         if user_id in State.active_users:
             user_has_active_entry = any(

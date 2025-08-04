@@ -13,6 +13,14 @@ async def handle_premium_purchase_command(client: Client, message: Message) -> N
     """Handles the /premium command directly"""
     try:
         user_id = message.from_user.id
+        
+        # Check if user is banned
+        is_banned, ban_reason = db.is_user_banned(user_id)
+        if is_banned:
+            logger.warning(f"[🚫] Banned user {user_id} attempted to use /premium command")
+            await message.reply_text(messages.USER_BANNED(ban_reason), reply_markup=ReplyKeyboardRemove())
+            return
+        
         db.add_user(user_id, False)
         logger.info(f"[💲] Received /premium command from user {user_id}")
 

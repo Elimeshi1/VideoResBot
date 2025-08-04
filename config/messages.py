@@ -346,6 +346,20 @@ ERROR_COMMAND_CHANNEL_NOT_FOUND = "Channel not found for removal."
 ERROR_COMMAND_CHANNEL_REMOVAL_FAILED = "Failed to remove the channel via command."
 
 # =============================================================================
+# BAN MESSAGES
+# =============================================================================
+
+USER_BANNED = lambda reason: f"🚫 **You are banned from using this bot.**\n\n**Reason:** {reason}\n\nContact support if you believe this is an error."
+
+BAN_SUCCESS = lambda user_id, reason: f"✅ User {user_id} has been banned.\n**Reason:** {reason}"
+UNBAN_SUCCESS = lambda user_id: f"✅ User {user_id} has been unbanned."
+BAN_USAGE = "Usage: /ban user_id reason"
+UNBAN_USAGE = "Usage: /unban user_id"
+BAN_ERROR = "An error occurred while processing the ban command."
+UNBAN_ERROR = "An error occurred while processing the unban command."
+USER_NOT_FOUND = lambda user_id: f"User {user_id} not found in database."
+
+# =============================================================================
 # ADMIN MESSAGES
 # =============================================================================
 

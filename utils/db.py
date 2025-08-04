@@ -42,7 +42,9 @@ class Database:
                 premium_expiry TIMESTAMP,
                 created_at TIMESTAMP,
                 updated_at TIMESTAMP,
-                max_channels INTEGER DEFAULT 1 
+                max_channels INTEGER DEFAULT 1,
+                is_banned BOOLEAN NOT NULL DEFAULT 0,
+                ban_reason TEXT
             )
             ''')
             
@@ -414,6 +416,84 @@ class Database:
         except Exception as e:
             logger.error(f"[❌] Error cleaning up expired data: {e}")
             
+    def ban_user(self, user_id: int, reason: str) -> bool:
+        """Ban a user with a specific reason"""
+        try:
+            if not self._ensure_connection():
+                return False
+                
+            now = datetime.now().isoformat()
+            
+            # Check if user exists
+            self.cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+            exists = self.cursor.fetchone()
+            
+            if exists:
+                # Update existing user
+                self.cursor.execute(
+                    "UPDATE users SET is_banned = 1, ban_reason = ?, updated_at = ? WHERE user_id = ?",
+                    (reason, now, user_id)
+                )
+            else:
+                # Create new user with ban status
+                self.cursor.execute(
+                    "INSERT INTO users (user_id, is_banned, ban_reason, created_at, updated_at) VALUES (?, 1, ?, ?, ?)",
+                    (user_id, reason, now, now)
+                )
+                
+            self.conn.commit()
+            logger.info(f"[🚫] User {user_id} banned with reason: {reason}")
+            return True
+        except Exception as e:
+            logger.error(f"[❌] Error banning user {user_id}: {e}")
+            return False
+            
+    def unban_user(self, user_id: int) -> bool:
+        """Unban a user"""
+        try:
+            if not self._ensure_connection():
+                return False
+                
+            now = datetime.now().isoformat()
+            
+            self.cursor.execute(
+                "UPDATE users SET is_banned = 0, ban_reason = NULL, updated_at = ? WHERE user_id = ?",
+                (now, user_id)
+            )
+            self.conn.commit()
+            
+            success = self.cursor.rowcount > 0
+            if success:
+                logger.info(f"[✅] User {user_id} unbanned successfully")
+            else:
+                logger.warning(f"[⚠️] User {user_id} not found or already unbanned")
+            
+            return success
+        except Exception as e:
+            logger.error(f"[❌] Error unbanning user {user_id}: {e}")
+            return False
+            
+    def is_user_banned(self, user_id: int) -> tuple[bool, Optional[str]]:
+        """Check if a user is banned and return the ban reason if banned"""
+        try:
+            if not self._ensure_connection():
+                return False, None
+                
+            self.cursor.execute(
+                "SELECT is_banned, ban_reason FROM users WHERE user_id = ?",
+                (user_id,)
+            )
+            result = self.cursor.fetchone()
+            
+            if not result:
+                return False, None
+                
+            is_banned, ban_reason = result
+            return bool(is_banned), ban_reason
+        except Exception as e:
+            logger.error(f"[❌] Error checking ban status for user {user_id}: {e}")
+            return False, None
+
     def close(self):
         """Close the database connection"""
         if self.conn:

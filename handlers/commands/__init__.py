@@ -9,7 +9,9 @@ from .general import (
     help_command_handler,
     cancel_command_handler,
     handle_private_other_messages,
-    refund_command_handler
+    refund_command_handler,
+    ban_command_handler,
+    unban_command_handler
 )
 from .premium import (
     handle_premium_purchase_command,
@@ -21,6 +23,8 @@ __all__ = [
     "help_command_handler",
     "cancel_command_handler",
     "refund_command_handler",
+    "ban_command_handler",
+    "unban_command_handler",
     # Premium Commands
     "handle_premium_purchase_command",
     # Catch-all
@@ -35,6 +39,8 @@ def register_command_handlers(app: Client):
         (cancel_command_handler, ["cancel"]), 
         (handle_premium_purchase_command, ["premium"]),
         (refund_command_handler, ["refund"]),
+        (ban_command_handler, ["ban"]),
+        (unban_command_handler, ["unban"]),
     ]
     
     for handler, commands in handlers_to_register:
@@ -44,7 +50,7 @@ def register_command_handlers(app: Client):
         handle_private_other_messages,
         filters.private &
         ~filters.video & # Exclude videos (handled in video package)
-        ~filters.command(["start", "help", "cancel", "premium", "refund"]) &
+        ~filters.command(["start", "help", "cancel", "premium", "refund", "ban", "unban"]) &
         ~filters.service &
         ~filters.chat_shared # Exclude chat shared (handled in payment package)
     ), group=4)

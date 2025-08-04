@@ -21,6 +21,13 @@ async def handle_premium_menu_button(client: Client, callback_query: CallbackQue
     try:
         user_id = callback_query.from_user.id
         
+        # Check if user is banned
+        is_banned, ban_reason = db.is_user_banned(user_id)
+        if is_banned:
+            logger.warning(f"[🚫] Banned user {user_id} attempted to access premium menu")
+            await callback_query.answer(f"You are banned. Reason: {ban_reason}", show_alert=True)
+            return
+        
         status, text, markup = await get_premium_display_info(user_id)
         
         if status is None:

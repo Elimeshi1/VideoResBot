@@ -2,7 +2,7 @@
 
 from pyrogram import Client, types
 from pyrogram.types import (
-    PreCheckoutQuery, CallbackQuery
+    PreCheckoutQuery, CallbackQuery, ReplyKeyboardRemove
 )
 from datetime import datetime, timedelta
 

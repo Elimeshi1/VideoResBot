@@ -14,6 +14,13 @@ async def start_command_handler(client: Client, message: Message) -> None:
         user_id = message.from_user.id
         user_name = message.from_user.first_name
         
+        # Check if user is banned
+        is_banned, ban_reason = db.is_user_banned(user_id)
+        if is_banned:
+            logger.warning(f"[🚫] Banned user {user_id} ({user_name}) attempted to use /start command")
+            await message.reply_text(messages.USER_BANNED(ban_reason), reply_markup=ReplyKeyboardRemove())
+            return
+        
         logger.info(f"[👋] New /start command from user {user_id} ({user_name})")
         
         db.add_user(user_id, False)
@@ -30,6 +37,14 @@ async def help_command_handler(client: Client, message: Message) -> None:
     try:
         user_id = message.from_user.id
         user_name = message.from_user.first_name
+        
+        # Check if user is banned
+        is_banned, ban_reason = db.is_user_banned(user_id)
+        if is_banned:
+            logger.warning(f"[🚫] Banned user {user_id} ({user_name}) attempted to use /help command")
+            await message.reply_text(messages.USER_BANNED(ban_reason), reply_markup=ReplyKeyboardRemove())
+            return
+        
         logger.info(f"[ℹ️] Received help command from user {user_id} ({user_name})")
         
         db.add_user(user_id, False)    
@@ -47,7 +62,14 @@ async def cancel_command_handler(client: Client, message: Message) -> None:
         user_id = message.from_user.id
         user_name = message.from_user.first_name
 
-        db.add_user(user_id, False)  
+        # Check if user is banned
+        is_banned, ban_reason = db.is_user_banned(user_id)
+        if is_banned:
+            logger.warning(f"[🚫] Banned user {user_id} ({user_name}) attempted to use /cancel command")
+            await message.reply_text(messages.USER_BANNED(ban_reason), reply_markup=ReplyKeyboardRemove())
+            return
+
+        db.add_user(user_id, False)
         
         # Check if user has any active videos
         active_count = get_active_videos_count(user_id, is_channel=False)
@@ -108,10 +130,19 @@ async def handle_private_other_messages(client: Client, message: Message) -> Non
         # Skip sending response for refunded payment messages
         if hasattr(message, 'refunded_payment'):
             return
+        
+        user_id = message.from_user.id
+        
+        # Check if user is banned
+        is_banned, ban_reason = db.is_user_banned(user_id)
+        if is_banned:
+            logger.warning(f"[🚫] Banned user {user_id} attempted to send message")
+            await message.reply_text(messages.USER_BANNED(ban_reason), reply_markup=ReplyKeyboardRemove())
+            return
             
-        db.add_user(message.from_user.id, False)
+        db.add_user(user_id, False)
         await message.reply_text(messages.OTHER_MESSAGE_PROMPT, reply_markup=ReplyKeyboardRemove())
-        logger.info(f"[ℹ️] Sent response to user {message.from_user.id} for non-video message")
+        logger.info(f"[ℹ️] Sent response to user {user_id} for non-video message")
     except Exception as e:
         logger.error(f"[❌] Error in handle_private_other_messages for user {message.from_user.id}: {e}") 
 
@@ -149,4 +180,82 @@ async def refund_command_handler(client: Client, message: Message) -> None:
     
     except Exception as e:
         logger.error(f"[❌] Error handling refund command: {e}")
-        await message.reply_text(messages.REFUND_ERROR, reply_markup=ReplyKeyboardRemove()) 
+        await message.reply_text(messages.REFUND_ERROR, reply_markup=ReplyKeyboardRemove())
+
+async def ban_command_handler(client: Client, message: Message) -> None:
+    """Handle the /ban command (admin only)"""
+    try:
+        user_id = message.from_user.id
+        
+        # Check if the user is an admin
+        if user_id != Config.ADMIN_ID:
+            logger.warning(f"[⚠️] Non-admin user {user_id} tried to use /ban command")
+            await message.reply_text(messages.ADMIN_ONLY_COMMAND, reply_markup=ReplyKeyboardRemove())
+            return
+            
+        # Check if command has the correct format: /ban user_id reason
+        command_parts = message.text.split(' ', 2)  # Split into max 3 parts
+        if len(command_parts) < 3:
+            await message.reply_text(messages.BAN_USAGE, reply_markup=ReplyKeyboardRemove())
+            return
+            
+        try:
+            target_user_id = int(command_parts[1])
+        except ValueError:
+            await message.reply_text(messages.BAN_USAGE, reply_markup=ReplyKeyboardRemove())
+            return
+            
+        ban_reason = command_parts[2]
+        
+        # Log the ban attempt
+        logger.info(f"[🚫] Admin {user_id} attempting to ban user {target_user_id} with reason: {ban_reason}")
+        
+        # Attempt to ban
+        if db.ban_user(target_user_id, ban_reason):
+            await message.reply_text(messages.BAN_SUCCESS(target_user_id, ban_reason), reply_markup=ReplyKeyboardRemove())
+            logger.info(f"[✅] User {target_user_id} banned successfully by admin {user_id}")
+        else:
+            await message.reply_text(messages.BAN_ERROR, reply_markup=ReplyKeyboardRemove())
+            logger.error(f"[❌] Failed to ban user {target_user_id}")
+    
+    except Exception as e:
+        logger.error(f"[❌] Error handling ban command: {e}")
+        await message.reply_text(messages.BAN_ERROR, reply_markup=ReplyKeyboardRemove())
+
+async def unban_command_handler(client: Client, message: Message) -> None:
+    """Handle the /unban command (admin only)"""
+    try:
+        user_id = message.from_user.id
+        
+        # Check if the user is an admin
+        if user_id != Config.ADMIN_ID:
+            logger.warning(f"[⚠️] Non-admin user {user_id} tried to use /unban command")
+            await message.reply_text(messages.ADMIN_ONLY_COMMAND, reply_markup=ReplyKeyboardRemove())
+            return
+            
+        # Check if command has the correct format: /unban user_id
+        command_parts = message.text.split(' ')
+        if len(command_parts) != 2:
+            await message.reply_text(messages.UNBAN_USAGE, reply_markup=ReplyKeyboardRemove())
+            return
+            
+        try:
+            target_user_id = int(command_parts[1])
+        except ValueError:
+            await message.reply_text(messages.UNBAN_USAGE, reply_markup=ReplyKeyboardRemove())
+            return
+        
+        # Log the unban attempt
+        logger.info(f"[✅] Admin {user_id} attempting to unban user {target_user_id}")
+        
+        # Attempt to unban
+        if db.unban_user(target_user_id):
+            await message.reply_text(messages.UNBAN_SUCCESS(target_user_id), reply_markup=ReplyKeyboardRemove())
+            logger.info(f"[✅] User {target_user_id} unbanned successfully by admin {user_id}")
+        else:
+            await message.reply_text(messages.USER_NOT_FOUND(target_user_id), reply_markup=ReplyKeyboardRemove())
+            logger.warning(f"[⚠️] User {target_user_id} not found or already unbanned")
+    
+    except Exception as e:
+        logger.error(f"[❌] Error handling unban command: {e}")
+        await message.reply_text(messages.UNBAN_ERROR, reply_markup=ReplyKeyboardRemove()) 
