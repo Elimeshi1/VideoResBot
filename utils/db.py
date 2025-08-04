@@ -46,7 +46,7 @@ class Database:
                 premium_expiry TIMESTAMP,
                 created_at TIMESTAMP,
                 updated_at TIMESTAMP,
-                max_channels INTEGER DEFAULT 1
+                max_channels INTEGER DEFAULT 0
             )
             ''')
             
