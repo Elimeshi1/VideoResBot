@@ -28,7 +28,7 @@ async def start_command_handler(client: Client, message: Message) -> None:
     else:
         welcome_text = messages.START_TEXT_NEW_USER
     
-    await message.reply_text(welcome_text)
+    await message.reply_text(welcome_text, reply_markup=ReplyKeyboardRemove())
 
 @combined_user_check
 @handle_errors()
@@ -39,7 +39,7 @@ async def help_command_handler(client: Client, message: Message) -> None:
     
     logger.info(f"[ℹ️] Received help command from user {user_id} ({user_name})")
     
-    await message.reply_text(messages.HELP_TEXT)
+    await message.reply_text(messages.HELP_TEXT, reply_markup=ReplyKeyboardRemove())
 
 @combined_user_check
 @handle_errors()
@@ -53,7 +53,7 @@ async def cancel_command_handler(client: Client, message: Message) -> None:
     
     if active_count == 0 and user_id not in State.active_users:
         logger.info(f"[❌] User {user_id} ({user_name}) tried to cancel but has no active videos")
-        await message.reply_text(messages.CANCEL_NO_ACTIVE_VIDEO)
+        await message.reply_text(messages.CANCEL_NO_ACTIVE_VIDEO, reply_markup=ReplyKeyboardRemove())
         return
     
     transfer_msg_id = None
@@ -70,7 +70,7 @@ async def cancel_command_handler(client: Client, message: Message) -> None:
         # Only remove from active_users if there are no active videos
         if active_count == 0:
             State.active_users.discard(user_id)
-        await message.reply_text(messages.CANCEL_NO_ACTIVE_VIDEO)
+        await message.reply_text(messages.CANCEL_NO_ACTIVE_VIDEO, reply_markup=ReplyKeyboardRemove())
         return
     
     _, scheduled_msg_id, _, _, _ = State.video_info[transfer_msg_id]
@@ -83,11 +83,11 @@ async def cancel_command_handler(client: Client, message: Message) -> None:
     
     if remaining_count > 0:
         # Keep user in active_users as they still have videos
-        await message.reply_text(messages.CANCEL_STILL_ACTIVE(remaining_count))
+        await message.reply_text(messages.CANCEL_STILL_ACTIVE(remaining_count), reply_markup=ReplyKeyboardRemove())
     else:
         # Remove user from active_users
         State.active_users.discard(user_id)
-        await message.reply_text(messages.CANCEL_SUCCESS)
+        await message.reply_text(messages.CANCEL_SUCCESS, reply_markup=ReplyKeyboardRemove())
         
     logger.info(f"[✅] Successfully canceled video processing for user {user_id} ({user_name}). Remaining videos: {remaining_count}")
 

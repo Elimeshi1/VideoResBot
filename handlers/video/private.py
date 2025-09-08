@@ -5,7 +5,7 @@ This module handles videos sent by users in private chats.
 """
 
 from pyrogram import Client
-from pyrogram.types import Message
+from pyrogram.types import Message, ReplyKeyboardRemove
 from utils.logger import logger
 from utils.video_utils import calculate_processing_time
 from config.state import State
@@ -74,7 +74,7 @@ async def process_video_handler(client: Client, message: Message) -> None:
         is_banned, ban_reason = db.is_user_banned(user_id)
         if is_banned:
             logger.warning(f"[🚫] Banned user {user_id} ({user_name}) attempted to send video")
-            await message.reply_text(messages.USER_BANNED(ban_reason), )
+            await message.reply_text(messages.USER_BANNED(ban_reason), reply_markup=ReplyKeyboardRemove())
             return
         
         # Check if user has configured a channel
@@ -82,6 +82,7 @@ async def process_video_handler(client: Client, message: Message) -> None:
             logger.info(f"[📺] User {user_id} ({user_name}) needs to set up channel first")
             await message.reply_text(
                 messages.CHANNEL_SETUP_REQUIRED,
+                reply_markup=ReplyKeyboardRemove()
             )
             return
         
@@ -95,7 +96,7 @@ async def process_video_handler(client: Client, message: Message) -> None:
                 State.active_users.discard(user_id)
         
         # Send immediate acknowledgment message
-        status_message = await message.reply_text(messages.VIDEO_RECEIVED)
+        status_message = await message.reply_text(messages.VIDEO_RECEIVED, reply_markup=ReplyKeyboardRemove())
         
         # Initialize database for premium check
         is_premium = db.is_user_premium(user_id)
@@ -214,7 +215,7 @@ async def process_video_handler(client: Client, message: Message) -> None:
         try:
             # Use the status_message if available, otherwise reply to original message
             msg_to_reply = status_message if 'status_message' in locals() else message
-            await msg_to_reply.reply_text(messages.CRITICAL_PROCESS_ERROR)
+            await msg_to_reply.reply_text(messages.CRITICAL_PROCESS_ERROR, reply_markup=ReplyKeyboardRemove())
         except Exception as nested_e:
             logger.error(f"[❌] Error sending critical error message: {nested_e}")
         finally:

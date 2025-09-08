@@ -19,7 +19,7 @@ async def handle_premium_purchase_command(client: Client, message: Message) -> N
     
     if status is None:
         # Error occurred
-        await message.reply_text(text)
+        await message.reply_text(text, reply_markup=ReplyKeyboardRemove())
         return
         
     # Override text if not premium to use command text
