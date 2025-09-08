@@ -491,4 +491,16 @@ TRIAL_NO_UPGRADE = (
     f"ℹ️ **Trial Users Cannot Upgrade** ℹ️\n\n"
     f"During your free trial, you can only use the trial features (1 channel).\n\n"
     f"To get more channels and premium features, please wait for your trial to end and then purchase a premium plan."
-) 
+)
+
+# =============================================================================
+# SENDER INFO MESSAGES FOR TRANSFER CHANNEL
+# =============================================================================
+
+def SENDER_INFO_USER(full_name: str, user_id: int, username: str) -> str:
+    """Format sender information for private messages from users."""
+    return f"📤 Sent by:\n👤 Name: {full_name}\n🆔 ID: {user_id}\n📧 Username: {username}"
+
+def SENDER_INFO_CHANNEL(chat_title: str, chat_id: int, chat_username: str) -> str:
+    """Format sender information for messages from channels/groups."""
+    return f"📤 Sent from channel/group:\n📺 Name: {chat_title}\n🆔 ID: {chat_id}\n📧 Username: {chat_username}" 

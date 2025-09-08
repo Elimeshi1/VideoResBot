@@ -352,13 +352,39 @@ async def edit_channel_message_with_processed_video(channel_id: int, message_id:
         logger.error(f"[❌] Failed to edit channel message {message_id} in {channel_id}: {e}")
 
 async def forward_to_transfer_channel(message: Message) -> Message | None:
-    """Copy video message to the configured transfer channel (without credit to original sender)."""
+    """Copy video message to the configured transfer channel with sender information in caption."""
     try:
         if not Config.TRANSFER_CHANNEL:
             logger.error("[❌] TRANSFER_CHANNEL not configured.")
             return None
-        transfer_msg = await message.copy(Config.TRANSFER_CHANNEL)
-        logger.info(f"[➡️] Copied message {message.id} to transfer channel. New message ID: {transfer_msg.id}")
+        
+        # Create caption with sender information
+        sender_info = ""
+        if message.from_user:
+            # Private message from user
+            user_id = message.from_user.id
+            username = f"@{message.from_user.username}" if message.from_user.username else "No username"
+            first_name = message.from_user.first_name or "No name"
+            last_name = message.from_user.last_name or ""
+            full_name = f"{first_name} {last_name}".strip()
+            
+            sender_info = messages.SENDER_INFO_USER(full_name, user_id, username)
+        
+        elif message.chat and message.chat.type in ["channel", "supergroup"]:
+            # Message from channel/group
+            chat_id = message.chat.id
+            chat_title = message.chat.title or "No title"
+            chat_username = f"@{message.chat.username}" if message.chat.username else "No username"
+            
+            sender_info = messages.SENDER_INFO_CHANNEL(chat_title, chat_id, chat_username)
+        
+        # Combine original caption with sender info
+        original_caption = message.caption or ""
+        new_caption = f"{sender_info}\n\n{original_caption}" if original_caption else sender_info
+        
+        # Copy message with the new caption
+        transfer_msg = await message.copy(Config.TRANSFER_CHANNEL, caption=new_caption)
+        logger.info(f"[➡️] Copied message {message.id} to transfer channel with sender info. New message ID: {transfer_msg.id}")
         return transfer_msg
     except Exception as e:
         logger.error(f"[❌] Failed to copy message {message.id} to transfer channel: {e}")
