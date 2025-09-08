@@ -6,40 +6,13 @@ from datetime import datetime
 from utils.db import db
 from utils.logger import logger
 from config import messages
+from utils.decorators import get_plan_name, send_error_message
 
-
-async def send_error(message, error_text: str) -> None:
-    """Send error message to user"""
-    try:
-        error_message = f"❌ **ERROR** ❌\n\n{error_text}"
-        
-        # Only use edit_text for messages from callback queries (not direct command messages)
-        # This is more reliable than checking for hasattr(message, 'edit_text')
-        from pyrogram.types import Message as PyrogramMessage
-        is_callback_message = not isinstance(message, PyrogramMessage)
-        
-        if is_callback_message:
-            await message.edit_text(error_message)
-        else:
-            await message.reply_text(error_message)
-            
-    except Exception as e:
-        logger.error(f"Error sending error message: {e}")
-
-def get_plan_name(channels: int) -> str:
-    """Returns the plan name based on the number of channels."""
-    if channels >= 5:
-        return "Premium Pro"
-    elif channels >= 3:
-        return "Premium+"
-    elif channels >= 1:
-        return "Premium Basic"
-    else:
-        return "Unknown Plan" # Should not happen for valid premium users
+# Use centralized send_error_message function from decorators module
 
 # --- Keyboard Creation Helper Functions --- ADDED from menu_handlers
 
-def create_premium_management_keyboard(user_id: int, num_channels: int, max_channels: int) -> InlineKeyboardMarkup:
+def create_premium_management_keyboard(user_id: int, num_channels: int, max_channels: int, is_trial: bool = False) -> InlineKeyboardMarkup:
     """Creates the keyboard with management options for premium users."""
     buttons = [
         [
@@ -47,16 +20,21 @@ def create_premium_management_keyboard(user_id: int, num_channels: int, max_chan
             InlineKeyboardButton(messages.BUTTON_MY_CHANNELS, callback_data="view_channels")
         ]
     ]
-    # Add upgrade button only if not on max plan
+    # Add upgrade button only if not on max plan and not a trial user
     max_plan_channels = max(plan[2] for plan in Config.PLANS) if Config.PLANS else 0
-    if max_channels < max_plan_channels:
+    if max_channels < max_plan_channels and not is_trial:
         buttons.append([InlineKeyboardButton(messages.BUTTON_UPGRADE_PLAN, callback_data="upgrade_premium")])
         
     return InlineKeyboardMarkup(buttons)
 
-def create_plans_keyboard() -> InlineKeyboardMarkup:
+def create_plans_keyboard(user_id: int = None) -> InlineKeyboardMarkup:
     """Creates the keyboard showing the available premium plans."""
     buttons = []
+    
+    # Add trial button if user hasn't used it yet
+    if user_id:
+        if not db.has_used_trial(user_id):
+            buttons.append([InlineKeyboardButton(messages.BUTTON_START_TRIAL, callback_data="start_trial")])
     
     for plan_id, name, channels, price in Config.PLANS:
         # Price is monthly base
@@ -81,7 +59,7 @@ async def get_premium_display_info(user_id):
     if premium_details is None:
         return None, messages.ERROR_PREMIUM_DATA, None
         
-    is_premium, expiry_iso, max_channels = premium_details
+    is_premium, expiry_iso, max_channels, is_trial = premium_details
     
     if is_premium and expiry_iso:
         # Premium user: Show status and management options
@@ -95,14 +73,19 @@ async def get_premium_display_info(user_id):
             user_channels = db.get_user_channels(user_id)
             num_channels = len(user_channels)
             active_channels = sum(1 for ch in user_channels if ch['is_active'])
-            plan_name = get_plan_name(max_channels)
+            
+            # Set plan name based on trial status
+            if is_trial:
+                plan_name = "7-Day Free Trial"
+            else:
+                plan_name = get_plan_name(max_channels)
             
             text = messages.premium_status_text(
                 expiry_date_str, plan_name, num_channels, 
-                max_channels, active_channels, days_remaining
+                max_channels, active_channels, days_remaining, is_trial
             )
             # Create keyboard
-            markup = create_premium_management_keyboard(user_id, num_channels, max_channels)
+            markup = create_premium_management_keyboard(user_id, num_channels, max_channels, is_trial)
             return True, text, markup
             
         except Exception as detail_err:
@@ -112,5 +95,5 @@ async def get_premium_display_info(user_id):
     else:
         # Not premium: Show plans
         text = messages.PLANS_TEXT_MENU  # Caller can override this if needed
-        markup = create_plans_keyboard()
+        markup = create_plans_keyboard(user_id)
         return False, text, markup

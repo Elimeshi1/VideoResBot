@@ -7,9 +7,10 @@ This module handles video processing functionality:
 - Handling processed videos with alternative qualities
 """
 from datetime import datetime, timezone, timedelta
-from pyrogram.types import Message, InputMediaVideo
+from pyrogram.types import Message, InputMediaVideo, InlineKeyboardMarkup, InlineKeyboardButton
 from config.state import State
 from config.config import Config
+from config import messages
 from utils.logger import logger
 from utils.video_utils import calculate_processing_time, format_video_info
 from utils.cleanup import delete_scheduled_message, clean_up_tracking_info
@@ -68,7 +69,30 @@ async def send_original_video(msg: Message, user_id: int) -> bool:
         
         # Caption with original quality info and hint about settings button
         original_caption = f"Original quality: {msg.video.height}p\n\nℹ️ You can also tap on the video settings button to select different qualities!"
-        await msg.copy(user_channel, caption=original_caption)
+        sent_msg = await msg.copy(user_channel, caption=original_caption)
+        
+        # Send private message to user with inline button to video in channel
+        try:
+            # Format: https://t.me/c/channel_id/msg_id (remove the -100 prefix from channel_id)
+            channel_id_str = str(user_channel)[4:] if str(user_channel).startswith('-100') else str(user_channel)
+            video_link = f"https://t.me/c/{channel_id_str}/{sent_msg.id}"
+            
+            inline_keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🎬 View Video in Channel", url=video_link)]
+            ])
+            
+            private_msg = messages.VIDEO_PROCESSED_SUCCESS
+            
+            await State.bot.send_message(
+                user_id,
+                private_msg,
+                reply_markup=inline_keyboard
+            )
+            logger.info(f"[📱] Sent private notification to user {user_id} with video button")
+            
+        except Exception as link_err:
+            logger.error(f"[❌] Failed to send private notification to user {user_id}: {link_err}")
+        
         logger.info(f"[✅] Sent original video ({msg.video.height}p) to user {user_id}'s channel {user_channel}")
         return True
     except Exception as e:
@@ -79,6 +103,7 @@ async def send_alternative_videos(msg: Message, user_id: int) -> int:
     """Send available alternative video qualities back to the user's channel."""
     from utils.db import db
     sent_count = 0
+    
     if not msg.video or not msg.video.alternative_videos:
          logger.info(f"[ℹ️] No video or alternative videos found for message {msg.id}")
          return 0
@@ -98,16 +123,20 @@ async def send_alternative_videos(msg: Message, user_id: int) -> int:
             try:
                 quality = f"{video.height}p" if video.height else f"Alternative {i+1}"
                 caption = f"📹 {quality}"
-                await State.bot.send_video(
+                sent_msg = await State.bot.send_video(
                     user_channel,
                     video.file_id,
                     caption=caption
                 )
+                
+                
                 sent_count += 1
                 logger.info(f"[✅] Sent {quality} video to user {user_id}'s channel {user_channel}")
             except Exception as send_err:
                 quality_label = f"{video.height}p" if video.height else f"#{i+1}"
                 logger.error(f"[❌] Failed to send alternative video {quality_label} to user {user_id}'s channel: {send_err}")
+        
+        
         return sent_count
     except Exception as e:
         logger.error(f"[❌] Error iterating or sending alternative videos for user {user_id}'s channel: {e}")

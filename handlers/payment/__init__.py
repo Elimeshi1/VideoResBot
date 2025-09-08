@@ -10,7 +10,8 @@ from .menu_handlers import (
     handle_premium_menu_button,
     handle_plan_selection,
     handle_upgrade_premium_button,
-    handle_upgrade_plan_selection
+    handle_upgrade_plan_selection,
+    handle_start_trial
 )
 from .invoice_handlers import (
     handle_premium_purchase_button as handle_invoice_purchase_button, # Alias for callback
@@ -36,6 +37,7 @@ _payment_handlers_map = {
     'handle_plan_selection': handle_plan_selection,
     'handle_upgrade_premium_button': handle_upgrade_premium_button,
     'handle_upgrade_plan_selection': handle_upgrade_plan_selection,
+    'handle_start_trial': handle_start_trial,
     'handle_invoice_purchase_button': handle_invoice_purchase_button,
     'handle_confirm_upgrade': handle_confirm_upgrade,
     'handle_pre_checkout_query_handler': handle_pre_checkout_query_handler,
@@ -84,6 +86,8 @@ def register_payment_handlers(app: Client):
             callback_pattern = r"premium_menu"
         elif handler_name == "handle_upgrade_premium_button":
             callback_pattern = r"upgrade_premium"
+        elif handler_name == "handle_start_trial":
+            callback_pattern = r"start_trial"
         elif handler_name == "handle_invoice_purchase_button": # Using aliased name
             callback_pattern = r"buy_premium_(\d+)_(\d+)"
         elif handler_name == "handle_confirm_upgrade":

@@ -32,6 +32,12 @@ class State:
     # Dictionary to store pending upgrade payloads keyed by a unique ID
     pending_upgrades: Dict[str, str] = {}
     
+    # Dictionary to store pending channel setups: {user_id: channel_id}
+    pending_channel_setups: Dict[int, int] = {}
+    
+    # Dictionary to store pending premium channel setups: {user_id: channel_id}
+    pending_premium_channel_setups: Dict[int, int] = {}
+    
     # References to queues and counters from queue_manager
     user_video_queue = user_video_queue
     channel_video_queue = channel_video_queue

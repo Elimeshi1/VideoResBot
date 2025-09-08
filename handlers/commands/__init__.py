@@ -1,7 +1,7 @@
 """Command handlers package"""
 
 from pyrogram import Client, filters
-from pyrogram.handlers import MessageHandler
+from pyrogram.handlers import MessageHandler, ChatMemberUpdatedHandler
 from utils.logger import logger
 
 from .general import (
@@ -12,8 +12,10 @@ from .general import (
     refund_command_handler,
     ban_command_handler,
     unban_command_handler,
+    add_premium_command_handler,
     channel_setup_command_handler,
-    handle_channel_shared
+    handle_channel_shared,
+    handle_chat_member_updated
 )
 from .premium import (
     handle_premium_purchase_command,
@@ -27,8 +29,10 @@ __all__ = [
     "refund_command_handler",
     "ban_command_handler",
     "unban_command_handler",
+    "add_premium_command_handler",
     "channel_setup_command_handler",
     "handle_channel_shared",
+    "handle_chat_member_updated",
     # Premium Commands
     "handle_premium_purchase_command",
     # Catch-all
@@ -45,6 +49,7 @@ def register_command_handlers(app: Client):
         (refund_command_handler, ["refund"]),
         (ban_command_handler, ["ban"]),
         (unban_command_handler, ["unban"]),
+        (add_premium_command_handler, ["add_premium"]),
         (channel_setup_command_handler, ["setchannel"]),
     ]
     
@@ -57,11 +62,16 @@ def register_command_handlers(app: Client):
         filters.private & filters.chat_shared
     ), group=2)
     
+    # Chat member updated handler (for completing channel setup when bot is promoted to admin)
+    app.add_handler(ChatMemberUpdatedHandler(
+        handle_chat_member_updated
+    ), group=2)
+    
     app.add_handler(MessageHandler(
         handle_private_other_messages,
         filters.private &
         ~filters.video & # Exclude videos (handled in video package)
-        ~filters.command(["start", "help", "cancel", "premium", "refund", "ban", "unban", "setchannel"]) &
+        ~filters.command(["start", "help", "cancel", "premium", "refund", "ban", "unban", "add_premium", "setchannel"]) &
         ~filters.service &
         ~filters.chat_shared # Exclude chat shared (handled above)
     ), group=4)

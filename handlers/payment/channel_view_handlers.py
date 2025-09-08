@@ -8,7 +8,7 @@ from datetime import datetime
 
 from utils.logger import logger
 from utils.db import db
-from .helpers import send_error
+from utils.decorators import send_error_message
 from config import messages
 
 async def handle_view_channels_button(client: Client, callback_query: CallbackQuery) -> None:
@@ -18,7 +18,7 @@ async def handle_view_channels_button(client: Client, callback_query: CallbackQu
         user_id = callback_query.from_user.id
         
         if not db.is_user_premium(user_id):
-            await send_error(callback_query.message, messages.ERROR_NOT_PREMIUM)
+            await send_error_message(callback_query.message, messages.ERROR_NOT_PREMIUM)
             return
             
         channels_data = db.get_user_channels(user_id)
@@ -58,7 +58,7 @@ async def handle_view_channels_button(client: Client, callback_query: CallbackQu
         
     except Exception as e:
         logger.error(f"[❌] Error in view channels for user {callback_query.from_user.id}: {e}")
-        await send_error(callback_query.message, messages.ERROR_VIEWING_CHANNELS)
+        await send_error_message(callback_query.message, messages.ERROR_VIEWING_CHANNELS)
 
 async def handle_channel_details(client: Client, callback_query: CallbackQuery) -> None:
     """Handle when a user selects a specific channel from the list (Shows details)"""
@@ -72,7 +72,7 @@ async def handle_channel_details(client: Client, callback_query: CallbackQuery) 
             channel_id = int(channel_id_str)
         except ValueError:
             logger.error(f"Invalid channel ID in details callback: {callback_query.data}")
-            await send_error(callback_query.message, messages.ERROR_GENERIC)
+            await send_error_message(callback_query.message, messages.ERROR_GENERIC)
             return
 
         channel_data = db.get_channel_details(user_id, channel_id) 
@@ -110,4 +110,4 @@ async def handle_channel_details(client: Client, callback_query: CallbackQuery) 
 
     except Exception as e:
         logger.error(f"[❌] Error showing channel details for user {callback_query.from_user.id}: {e}")
-        await send_error(callback_query.message, messages.ERROR_GENERIC) 
+        await send_error_message(callback_query.message, messages.ERROR_GENERIC) 

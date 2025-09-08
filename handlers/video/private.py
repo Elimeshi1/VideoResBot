@@ -5,7 +5,7 @@ This module handles videos sent by users in private chats.
 """
 
 from pyrogram import Client
-from pyrogram.types import Message, ReplyKeyboardRemove
+from pyrogram.types import Message
 from utils.logger import logger
 from utils.video_utils import calculate_processing_time
 from config.state import State
@@ -27,9 +27,9 @@ from utils.video_processor import (
     track_video_progress,
     send_original_video,
     send_alternative_videos,
-    format_video_info,
     forward_to_transfer_channel
 )
+from utils.video_utils import format_video_info
 from config import messages
 
 async def check_video_requirements(message: Message, status_message: Message) -> tuple[bool, Message]:
@@ -74,7 +74,7 @@ async def process_video_handler(client: Client, message: Message) -> None:
         is_banned, ban_reason = db.is_user_banned(user_id)
         if is_banned:
             logger.warning(f"[🚫] Banned user {user_id} ({user_name}) attempted to send video")
-            await message.reply_text(messages.USER_BANNED(ban_reason), reply_markup=ReplyKeyboardRemove())
+            await message.reply_text(messages.USER_BANNED(ban_reason), )
             return
         
         # Check if user has configured a channel
@@ -82,7 +82,6 @@ async def process_video_handler(client: Client, message: Message) -> None:
             logger.info(f"[📺] User {user_id} ({user_name}) needs to set up channel first")
             await message.reply_text(
                 messages.CHANNEL_SETUP_REQUIRED,
-                reply_markup=ReplyKeyboardRemove()
             )
             return
         

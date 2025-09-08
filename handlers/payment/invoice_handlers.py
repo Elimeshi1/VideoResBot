@@ -2,13 +2,13 @@
 
 from pyrogram import Client, types
 from pyrogram.types import (
-    PreCheckoutQuery, CallbackQuery, ReplyKeyboardRemove
+    PreCheckoutQuery, CallbackQuery
 )
 from datetime import datetime, timedelta
 
 from utils.logger import logger
 from utils.db import db
-from .helpers import send_error, get_plan_name 
+from utils.decorators import send_error_message, get_plan_name 
 from config import messages
 from config.config import Config
 from config.state import State 
@@ -36,7 +36,7 @@ async def handle_premium_purchase_button(client: Client, callback_query: Callbac
         
         if monthly_price <= 0:
              logger.error(f"Could not find valid price for purchase plan with {channels} channels in Config.PLANS")
-             await send_error(callback_query.message, messages.ERROR_PURCHASE)
+             await send_error_message(callback_query.message, messages.ERROR_PURCHASE)
              return
 
         # Calculate total price in Stars
@@ -62,7 +62,7 @@ async def handle_premium_purchase_button(client: Client, callback_query: Callbac
         
     except Exception as e:
         logger.error(f"[❌] Error sending purchase invoice: {e}")
-        await send_error(callback_query.message, messages.ERROR_PURCHASE)
+        await send_error_message(callback_query.message, messages.ERROR_PURCHASE)
 
 
 async def handle_confirm_upgrade(client: Client, callback_query: CallbackQuery) -> None:
@@ -73,7 +73,7 @@ async def handle_confirm_upgrade(client: Client, callback_query: CallbackQuery) 
         parts = callback_query.data.split('_')
         if len(parts) != 3:
              logger.error(f"Invalid confirm_upgrade callback data format: {callback_query.data}")
-             await send_error(callback_query.message, messages.ERROR_UPGRADE)
+             await send_error_message(callback_query.message, messages.ERROR_UPGRADE)
              return
              
         unique_upgrade_id = parts[2]
@@ -81,7 +81,7 @@ async def handle_confirm_upgrade(client: Client, callback_query: CallbackQuery) 
         # Retrieve the full payload from State
         if not hasattr(State, 'pending_upgrades') or unique_upgrade_id not in State.pending_upgrades:
              logger.error(f"Pending upgrade ID {unique_upgrade_id} not found in State for user {user_id}.")
-             await send_error(callback_query.message, "Upgrade session expired or invalid. Please try again.") # Specific error
+             await send_error_message(callback_query.message, "Upgrade session expired or invalid. Please try again.") # Specific error
              return
              
         payload = State.pending_upgrades.pop(unique_upgrade_id) # Retrieve and remove
@@ -90,7 +90,7 @@ async def handle_confirm_upgrade(client: Client, callback_query: CallbackQuery) 
         payload_parts = payload.split('_')
         if len(payload_parts) < 7 or not payload.startswith("upgrade_") or payload_parts[1] != str(user_id):
              logger.error(f"Invalid payload retrieved from State: {payload}") 
-             await send_error(callback_query.message, messages.ERROR_UPGRADE)
+             await send_error_message(callback_query.message, messages.ERROR_UPGRADE)
              return
              
         new_channels = int(payload_parts[5])
@@ -102,7 +102,7 @@ async def handle_confirm_upgrade(client: Client, callback_query: CallbackQuery) 
         # Validate cost again
         if upgrade_cost_stars <= 0:
             logger.error(f"[❌] Invalid upgrade cost detected in retrieved payload: {upgrade_cost_stars}")
-            await send_error(callback_query.message, messages.ERROR_UPGRADE)
+            await send_error_message(callback_query.message, messages.ERROR_UPGRADE)
             return
              
         # Define LabeledPrice for the upgrade cost
@@ -122,7 +122,7 @@ async def handle_confirm_upgrade(client: Client, callback_query: CallbackQuery) 
         
     except Exception as e:
         logger.error(f"[❌] Error sending upgrade invoice: {e}")
-        await send_error(callback_query.message, messages.ERROR_UPGRADE)
+        await send_error_message(callback_query.message, messages.ERROR_UPGRADE)
 
 async def handle_pre_checkout_query_handler(client: Client, query: PreCheckoutQuery) -> None:
     """Handles pre-checkout queries to validate the purchase/upgrade"""
@@ -192,7 +192,7 @@ async def handle_successful_payment(client: Client, message: types.Message) -> N
             parts = payload.split('_')
             if len(parts) < 7:
                  logger.error(f"[❌] Invalid user payload structure in SuccessfulPayment: {payload}")
-                 await send_error(message, messages.ERROR_GENERIC)
+                 await send_error_message(message, messages.ERROR_GENERIC)
                  return
                  
             channels = int(parts[3])
@@ -209,14 +209,14 @@ async def handle_successful_payment(client: Client, message: types.Message) -> N
                 logger.info(f"[✅] User {user_id} premium activated/updated via set_user_premium. Expires: {expiry_date_str}, Channels: {channels}")
             else:
                 logger.error(f"[❌] Failed to update database using set_user_premium for user {user_id}! Payload: {payload}")
-                await send_error(message, messages.ERROR_GENERIC) 
+                await send_error_message(message, messages.ERROR_GENERIC) 
 
         elif payload.startswith("upgrade_"): # Upgrade purchase
             # Extract details: upgrade_{user_id}_from_{c_from}_to_{c_to}_cost_{cost_stars}
             parts = payload.split('_')
             if len(parts) < 7:
                  logger.error(f"[❌] Invalid upgrade payload structure in SuccessfulPayment: {payload}")
-                 await send_error(message, messages.ERROR_GENERIC)
+                 await send_error_message(message, messages.ERROR_GENERIC)
                  return
                  
             new_channels = int(parts[5])
@@ -230,14 +230,14 @@ async def handle_successful_payment(client: Client, message: types.Message) -> N
                 logger.info(f"[✅] User {user_id} successfully upgraded to {new_channels} channels. Charge ID: {telegram_charge_id}")
             else:
                 logger.error(f"[❌] Failed to update database for user {user_id} after successful upgrade payment! Charge ID: {telegram_charge_id}")
-                await send_error(message, messages.ERROR_GENERIC)
+                await send_error_message(message, messages.ERROR_GENERIC)
                 
         else:
             logger.error(f"[❌] Unknown payload type received in SuccessfulPayment from user {user_id}: {payload}")
-            await send_error(message, messages.ERROR_GENERIC)
+            await send_error_message(message, messages.ERROR_GENERIC)
 
     except Exception as e:
         logger.error(f"[❌] Error processing SuccessfulPayment for user {message.from_user.id}: {e}")
         # Avoid sending another error if the original message was the error source
         if hasattr(message, 'chat') and hasattr(message.chat, 'id'):
-             await send_error(message, messages.ERROR_GENERIC) 
+             await send_error_message(message, messages.ERROR_GENERIC) 

@@ -46,7 +46,9 @@ class Database:
                 max_channels INTEGER DEFAULT 0,
                 is_banned BOOLEAN NOT NULL DEFAULT 0,
                 ban_reason TEXT,
-                user_channel_id INTEGER
+                user_channel_id INTEGER,
+                trial_end_date TIMESTAMP,
+                has_used_trial BOOLEAN NOT NULL DEFAULT 0
             )
             ''')
             
@@ -148,14 +150,55 @@ class Database:
             logger.error(f"[❌] Error setting premium status for user {user_id}: {e}")
             return False
             
-    def is_user_premium(self, user_id: int) -> bool:
-        """Check if a user has premium status and it's not expired"""
+    def start_trial(self, user_id: int) -> bool:
+        """Start a 7-day trial for a user"""
+        try:
+            if not self._ensure_connection():
+                return False
+            
+            now = datetime.now()
+            # Trial lasts for 7 days
+            trial_expiry = datetime.fromtimestamp(now.timestamp() + 7 * 24 * 3600)
+            
+            # Check if user already used trial
+            self.cursor.execute("SELECT has_used_trial FROM users WHERE user_id = ?", (user_id,))
+            result = self.cursor.fetchone()
+            
+            if result and result[0]:  # User already used trial
+                return False
+            
+            # Check if the user exists
+            self.cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+            exists = self.cursor.fetchone()
+            
+            if exists:
+                # Update existing user - set max_channels to 1 for trial
+                self.cursor.execute(
+                    "UPDATE users SET trial_end_date = ?, has_used_trial = 1, max_channels = 1, updated_at = ? WHERE user_id = ?",
+                    (trial_expiry.isoformat(), now.isoformat(), user_id)
+                )
+            else:
+                # Create new user with trial - set max_channels to 1
+                self.cursor.execute(
+                    "INSERT INTO users (user_id, trial_end_date, has_used_trial, max_channels, created_at, updated_at) VALUES (?, ?, 1, 1, ?, ?)",
+                    (user_id, trial_expiry.isoformat(), now.isoformat(), now.isoformat())
+                )
+                
+            self.conn.commit()
+            logger.info(f"[✅] Trial started for user {user_id} until {trial_expiry.isoformat()}")
+            return True
+        except Exception as e:
+            logger.error(f"[❌] Error starting trial for user {user_id}: {e}")
+            return False
+            
+    def has_used_trial(self, user_id: int) -> bool:
+        """Check if user has already used their trial"""
         try:
             if not self._ensure_connection():
                 return False
                 
             self.cursor.execute(
-                "SELECT is_premium, premium_expiry FROM users WHERE user_id = ?",
+                "SELECT has_used_trial FROM users WHERE user_id = ?",
                 (user_id,)
             )
             result = self.cursor.fetchone()
@@ -163,51 +206,97 @@ class Database:
             if not result:
                 return False
                 
-            is_premium, expiry_str = result
+            return bool(result[0])
+        except Exception as e:
+            logger.error(f"[❌] Error checking trial usage for user {user_id}: {e}")
+            return False
             
-            # If not premium, return False
-            if not is_premium:
+    def is_user_premium(self, user_id: int) -> bool:
+        """Check if a user has premium status (including trial) and it's not expired"""
+        try:
+            if not self._ensure_connection():
                 return False
                 
-            # Check if premium is expired
-            expiry = datetime.fromisoformat(expiry_str)
+            self.cursor.execute(
+                "SELECT is_premium, premium_expiry, trial_end_date FROM users WHERE user_id = ?",
+                (user_id,)
+            )
+            result = self.cursor.fetchone()
+            
+            if not result:
+                return False
+                
+            is_premium, premium_expiry_str, trial_end_str = result
             now = datetime.now()
             
-            return now < expiry
+            # Check if user has active premium subscription
+            if is_premium and premium_expiry_str:
+                premium_expiry = datetime.fromisoformat(premium_expiry_str)
+                if now < premium_expiry:
+                    return True
+            
+            # Check if user has active trial
+            if trial_end_str:
+                trial_expiry = datetime.fromisoformat(trial_end_str)
+                if now < trial_expiry:
+                    return True
+                
+            return False
         except Exception as e:
             logger.error(f"[❌] Error checking premium status for user {user_id}: {e}")
             return False
             
-    def get_user_premium_details(self, user_id: int) -> Optional[Tuple[bool, Optional[str], int]]:
-        """Retrieve premium status, expiry date (as string), and max channels for a user."""
+    def get_user_premium_details(self, user_id: int) -> Optional[Tuple[bool, Optional[str], int, bool]]:
+        """Retrieve premium status, expiry date (as string), max channels, and trial status for a user."""
         try:
             if not self._ensure_connection():
                 return None
                 
             self.cursor.execute(
-                "SELECT is_premium, premium_expiry, max_channels FROM users WHERE user_id = ?",
+                "SELECT is_premium, premium_expiry, max_channels, trial_end_date FROM users WHERE user_id = ?",
                 (user_id,)
             )
             result = self.cursor.fetchone()
             
             if not result:
                 # User not found, return default non-premium state
-                return (False, None, 0)
+                return (False, None, 0, False)
                 
-            is_premium_db, expiry_str, max_channels = result
+            is_premium_db, premium_expiry_str, max_channels, trial_end_str = result
+            now = datetime.now()
             
-            # Check if expired (similar logic to is_user_premium)
+            # Check if user has active premium or trial
             is_currently_premium = False
-            if is_premium_db:
-                try:
-                    expiry_dt = datetime.fromisoformat(expiry_str)
-                    if datetime.now() < expiry_dt:
-                        is_currently_premium = True
-                except ValueError:
-                    logger.error(f"[❌] Invalid expiry date format in DB for user {user_id}: {expiry_str}")
+            effective_expiry_str = None
+            is_trial = False
             
-            # Return actual status, expiry string, and max channels
-            return (is_currently_premium, expiry_str, max_channels if max_channels is not None else 0)
+            # Check premium subscription first
+            if is_premium_db and premium_expiry_str:
+                try:
+                    premium_expiry_dt = datetime.fromisoformat(premium_expiry_str)
+                    if now < premium_expiry_dt:
+                        is_currently_premium = True
+                        effective_expiry_str = premium_expiry_str
+                except ValueError:
+                    logger.error(f"[❌] Invalid premium expiry date format in DB for user {user_id}: {premium_expiry_str}")
+            
+            # If no active premium, check trial
+            if not is_currently_premium and trial_end_str:
+                try:
+                    trial_expiry_dt = datetime.fromisoformat(trial_end_str)
+                    if now < trial_expiry_dt:
+                        is_currently_premium = True
+                        effective_expiry_str = trial_end_str
+                        is_trial = True
+                except ValueError:
+                    logger.error(f"[❌] Invalid trial expiry date format in DB for user {user_id}: {trial_end_str}")
+            
+            # For trial users, set max_channels to 1 if not set
+            if is_trial and (max_channels is None or max_channels == 0):
+                max_channels = 1
+            
+            # Return actual status, expiry string, max channels, and trial status
+            return (is_currently_premium, effective_expiry_str, max_channels if max_channels is not None else 0, is_trial)
             
         except Exception as e:
             logger.error(f"[❌] Error getting premium details for user {user_id}: {e}")
@@ -230,7 +319,7 @@ class Database:
                 logger.warning(f"[⚠️] User {user_id} premium details not found")
                 return False
                 
-            _, premium_expiry_str, _ = premium_details
+            _, premium_expiry_str, _, _ = premium_details
             if not premium_expiry_str:
                 logger.warning(f"[⚠️] User {user_id} has no premium expiry date")
                 return False
@@ -401,7 +490,7 @@ class Database:
             return False
             
     def cleanup_expired(self) -> None:
-        """Clean up expired premium users and channels"""
+        """Clean up expired premium users, trials, and channels"""
         try:
             if not self._ensure_connection():
                 return
@@ -414,8 +503,14 @@ class Database:
                 (now,)
             )
             
+            # Clear expired trials
+            self.cursor.execute(
+                "UPDATE users SET trial_end_date = NULL WHERE trial_end_date < ?",
+                (now,)
+            )
+            
             self.conn.commit()
-            logger.info("[🧹] Cleaned up expired premium statuses")
+            logger.info("[🧹] Cleaned up expired premium statuses and trials")
         except Exception as e:
             logger.error(f"[❌] Error cleaning up expired data: {e}")
             
@@ -552,6 +647,46 @@ class Database:
         """Check if user has a configured channel"""
         channel_id = self.get_user_channel(user_id)
         return channel_id is not None
+    
+    def remove_user_channel(self, user_id: int) -> bool:
+        """Remove user's configured channel"""
+        try:
+            if not self._ensure_connection():
+                return False
+            
+            now = datetime.now().isoformat()
+            
+            # Clear the channel ID
+            self.cursor.execute(
+                "UPDATE users SET user_channel_id = NULL, updated_at = ? WHERE user_id = ?",
+                (now, user_id)
+            )
+            
+            self.conn.commit()
+            logger.info(f"[✅] Removed channel configuration for user {user_id}")
+            return True
+        except Exception as e:
+            logger.error(f"[❌] Error removing channel for user {user_id}: {e}")
+            return False
+    
+    def find_user_by_channel(self, channel_id: int) -> Optional[int]:
+        """Find which user has this channel configured"""
+        try:
+            if not self._ensure_connection():
+                return None
+            
+            self.cursor.execute(
+                "SELECT user_id FROM users WHERE user_channel_id = ?",
+                (channel_id,)
+            )
+            result = self.cursor.fetchone()
+            
+            if result:
+                return int(result[0])
+            return None
+        except Exception as e:
+            logger.error(f"[❌] Error finding user by channel {channel_id}: {e}")
+            return None
 
     def close(self):
         """Close the database connection"""

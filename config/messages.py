@@ -10,14 +10,21 @@ from .config import Config
 # MAIN BOT MESSAGES
 # =============================================================================
 
-START_TEXT = (
-    f"👋 Welcome to **VidRes Bot**!\n\n"
-    f"I process videos and return them in all available qualities.\n\n"
-    f"🔧 **First Time Setup:**\n"
-    f"• Use /setchannel to configure your output channel\n"
-    f"📱 **Other Commands:**\n"
-    f"• /premium - Get Premium features\n"
-    f"• /help - See all available commands"
+START_TEXT_NEW_USER = (
+    "👋 **Welcome to VidRes Bot!**\n\n"
+    "I process videos and return them in all available qualities.\n\n"
+    "🔧 **First Time Setup:**\n"
+    "• Use /setchannel to configure your output channel\n\n"
+    "📱 **Other Commands:**\n"
+    "• /premium - Get Premium features\n"
+    "• /help - See all available commands"
+)
+
+START_TEXT_EXISTING_USER = (
+    "👋 **Welcome to VidRes Bot!**\n\n"
+    "I process videos and return them in all available qualities.\n\n"
+    "• /premium - Get Premium features\n"
+    "• /help - See all available commands"
 )
 
 HELP_TEXT = (
@@ -58,19 +65,15 @@ CHANNEL_SETUP_REQUIRED = (
 )
 
 CHANNEL_SETUP_INSTRUCTIONS = (
-    "🔧 **Channel Setup Required**\n\n"
+    "🔧 **Channel Setup**\n\n"
     "To use this bot, you need to set up a channel where I'll send your processed videos.\n\n"
-    "**Steps:**\n"
-    "1. Create a channel or use an existing one\n"
-    "2. Add me (@VideoResBot) as an admin with permission to post messages\n"
-    "3. Click the button below to select your channel\n\n"
-    "**Need help?** [Click here to add me as admin]({bot_admin_link})\n\n"
+    "Click the button below (📺 Select Channel) to select your channel\n\n"
 )
 
 CHANNEL_SETUP_SUCCESS = (
     "✅ **Channel setup successful!**\n\n"
     "Your channel has been configured. All processed videos will now be sent there.\n\n"
-    "You can now send me videos for processing! 🎥"
+    "You can now send me here your videos for processing! 🎥"
 )
 
 CHANNEL_SETUP_FAILED = (
@@ -79,7 +82,7 @@ CHANNEL_SETUP_FAILED = (
     "1. Make sure I'm added as an admin\n"
     "2. Give me permission to post messages\n"
     "3. Try the setup again\n\n"
-    "[Click here for help]({bot_admin_link})"
+    "[Click here to add me as admin]({bot_admin_link})"
 )
 
 CHANNEL_SETUP_ERROR = (
@@ -90,10 +93,27 @@ CHANNEL_SETUP_GENERAL_ERROR = (
     "❌ An error occurred during channel setup. Please try again."
 )
 
-CHANNEL_SETUP_COMPLETE_MESSAGE = (
-    "✅ **Channel Setup Complete!**\n\n"
-    "This channel is now configured to receive your processed videos from @VideoResBot.\n\n"
-    "You can now send videos to the bot for processing!"
+CHANNEL_SETUP_PENDING = (
+    "Now please add me as an admin to your channel with permission to post messages.\n\n"
+    "Click the button below to add me as admin:"
+)
+
+PREMIUM_CHANNEL_SETUP_PENDING = (
+    "Now please add me as an admin to your premium channel with permission to edit messages.\n\n"
+    "Click the button below to add me as admin:"
+)
+
+VIDEO_PROCESSED_SUCCESS = (
+    "✅ **Video processed successfully!**\n\n"
+    "Your video is ready in your channel:"
+)
+
+ADD_BOT_AS_ADMIN = "👇 Click here to add me as admin:"
+
+CHANNEL_ACCESS_LOST = (
+    "⚠️ **Channel Access Lost**\n\n"
+    "I was removed from your channel or lost posting permissions.\n\n"
+    "You'll need to set up a new channel using /setchannel to continue using the bot."
 )
 
 # =============================================================================
@@ -156,6 +176,10 @@ ERROR_CANCEL = "An error occurred while trying to cancel the video processing."
 PLANS_TEXT_MENU = (
     f"🌟 **PREMIUM PLANS** 🌟\n\n"
     f"Select a plan that fits your needs:\n\n"
+    f"🆓 **7-Day Free Trial**\n"
+    f"• 1 channel\n"
+    f"• process 5 videos simultaneously\n"
+    f"• Try premium features for free!\n\n"
     f"💠 **Premium Basic**\n"
     f"• 1 channel\n"
     f"• process 5 videos simultaneously\n\n"
@@ -171,24 +195,30 @@ PLANS_TEXT_MENU = (
 PLANS_TEXT_COMMAND = (
     f"🌟 **PREMIUM PLANS** 🌟\n\n"
     f"Select a plan that fits your needs:\n\n"
-    f"💠 **Premium Basic**\n"
+    f"🆓 **7-Day Free Trial**\n"
     f"• 1 channel\n"
     f"• process 5 videos simultaneously\n"
+    f"• Try premium features for free!\n\n"
+    f"💠 **Premium Basic**\n"
+    f"• 1 channel\n"
+    f"• process 5 videos simultaneously\n\n"
     f"💠 **Premium+**\n"
     f"• 3 channels\n"
-    f"• process 5 videos simultaneously\n"
+    f"• process 5 videos simultaneously\n\n"
     f"💠 **Premium Pro**\n"
     f"• 5 channels\n"
-    f"• process 5 videos simultaneously\n"
-    f"Select a plan to purchase:"
+    f"• process 5 videos simultaneously"
 )
 
 def premium_status_text(expiry_date: str, plan_name: str, num_channels: int, 
-                       max_channels: int, active_channels: int, days_remaining: str | int) -> str:
+                       max_channels: int, active_channels: int, days_remaining: str | int, is_trial: bool = False) -> str:
     """Returns the formatted premium status message."""
+    status_emoji = "🆓" if is_trial else "✅"
+    status_text = "Free Trial" if is_trial else "Premium"
+    
     return (
-        f"✨ **PREMIUM STATUS** ✨\n\n"
-        f"• Status: ✅ Active until {expiry_date}\n"
+        f"✨ **{status_text.upper()} STATUS** ✨\n\n"
+        f"• Status: {status_emoji} Active until {expiry_date}\n"
         f"• Plan: {plan_name}\n"
         f"• Channels: {num_channels}/{max_channels}\n"
         f"• Days remaining: {days_remaining}\n\n"
@@ -305,7 +335,6 @@ def channel_added_success_text(channel_id: int, current_channels: int, max_chann
         f"• Channel ID: `{channel_id}`\n"
         f"• Channels used: {current_channels + 1}/{max_channels}\n"
         f"• Expires with your premium subscription\n\n"
-        f"__**Make sure the bot is an admin in your channel**__"
     )
 
 NO_CHANNELS_TEXT = (
@@ -363,6 +392,7 @@ BUTTON_CANCEL = "❌ Cancel"
 BUTTON_REMOVE_CHANNEL = "🗑️ Remove Channel"
 BUTTON_CONFIRM_REMOVE = "✅ Yes, Remove"
 BUTTON_BACK_TO_CHANNELS = "↩️ Back to Channels"
+BUTTON_START_TRIAL = "🆓 Start 7-Day Trial"
 
 # =============================================================================
 # ERROR MESSAGES
@@ -420,4 +450,45 @@ ADMIN_ONLY_COMMAND = "This command is only available to admins."
 REFUND_USAGE = "Usage: /refund user_id payment_charge_id"
 REFUND_SUCCESS = lambda user_id: f"✅ Successfully initiated refund for user {user_id}"
 REFUND_FAILED = lambda error: f"❌ Failed to process refund: {error}"
-REFUND_ERROR = "An error occurred while processing the refund command." 
+REFUND_ERROR = "An error occurred while processing the refund command."
+
+# Add Premium Command Messages
+ADD_PREMIUM_USAGE = "Usage: /add_premium user_id months"
+ADD_PREMIUM_SUCCESS = lambda user_id, months: f"✅ Successfully added {months} month{'s' if months > 1 else ''} of premium to user {user_id}"
+ADD_PREMIUM_ERROR = "An error occurred while adding premium status."
+ADD_PREMIUM_INVALID_MONTHS = "Number of months must be a positive integer."
+PREMIUM_GRANTED_NOTIFICATION = lambda months: f"🎉 **Congratulations!** 🎉\n\nYou have been granted {months} month{'s' if months > 1 else ''} of premium access!\n\nUse /premium to manage your premium features."
+
+# =============================================================================
+# TRIAL MESSAGES
+# =============================================================================
+
+TRIAL_STARTED_SUCCESS = (
+    f"🎉 **Free Trial Started!** 🎉\n\n"
+    f"Your 7-day premium trial is now active!\n\n"
+    f"✨ **What you get:**\n"
+    f"• 1 premium channel\n"
+    f"• Process 5 videos simultaneously\n"
+    f"Use /premium to manage your trial features.\n\n"
+    f"Enjoy exploring premium! 🚀"
+)
+
+TRIAL_ALREADY_USED = (
+    f"ℹ️ **Trial Already Used** ℹ️\n\n"
+    f"You have already used your 7-day free trial.\n\n"
+    f"Choose one of the premium plans below to continue enjoying premium features:"
+)
+
+TRIAL_ERROR = "An error occurred while starting your trial. Please try again."
+
+TRIAL_EXPIRED = (
+    f"⏰ **Trial Expired** ⏰\n\n"
+    f"Your 7-day free trial has ended.\n\n"
+    f"Thank you for trying our premium features! To continue enjoying premium benefits, please choose one of our plans below:"
+)
+
+TRIAL_NO_UPGRADE = (
+    f"ℹ️ **Trial Users Cannot Upgrade** ℹ️\n\n"
+    f"During your free trial, you can only use the trial features (1 channel).\n\n"
+    f"To get more channels and premium features, please wait for your trial to end and then purchase a premium plan."
+) 

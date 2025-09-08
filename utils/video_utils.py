@@ -131,46 +131,6 @@ async def check_video_codec_format(video, source_info="") -> bool:
         logger.error(f"[⚠️] Error detecting codec/format {source_info}: {e}. Allowing processing.")
         return True # Allow processing on error
 
-async def find_and_clean_tracking_info(transfer_msg_id=None, channel_id=None, message_id=None) -> bool:
-    """Find and clean up video tracking information from State based on available IDs."""
-    found_and_cleaned = False
-    try:
-        target_transfer_id = None
-        user_id_to_clean = None
-
-        # If transfer_msg_id is provided, use it directly
-        if transfer_msg_id is not None:
-            if transfer_msg_id in State.video_info:
-                target_transfer_id = transfer_msg_id
-                user_id_to_clean = State.video_info[transfer_msg_id][0]
-                logger.info(f"[🧹] Found tracking info via Transfer ID: {transfer_msg_id}")
-        
-        # If channel info is provided and not found yet, search by channel and message ID
-        elif channel_id is not None and message_id is not None:
-            for transfer_id, data in list(State.user_videos.items()):
-                # Check if it's the tuple format with channel data
-                if isinstance(data, tuple) and len(data) == 2:
-                    stored_channel_id, stored_message_id = data
-                    if stored_channel_id == channel_id and stored_message_id == message_id:
-                        if transfer_id in State.video_info:
-                            target_transfer_id = transfer_id
-                            user_id_to_clean = State.video_info[transfer_id][0]
-                            logger.info(f"[🧹] Found tracking info via Channel/Message ID: {channel_id}/{message_id}")
-                            break # Found it
-
-        # If found, perform cleanup
-        if target_transfer_id is not None and user_id_to_clean is not None:
-            from utils.cleanup import clean_up_tracking_info
-            clean_up_tracking_info(target_transfer_id, user_id_to_clean)
-            logger.info(f"[🧹] Cleaned up tracking info for Transfer ID: {target_transfer_id}")
-            found_and_cleaned = True
-        else:
-             logger.warning(f"[⚠️] Tracking info not found for cleanup. Provided IDs: transfer={transfer_msg_id}, channel={channel_id}, msg={message_id}")
-
-    except Exception as e:
-        logger.error(f"[❌] Error in find_and_clean_tracking_info: {e}")
-    
-    return found_and_cleaned
 
 def format_video_info(original_size: int, duration: int, processing_time: float, estimated_time: float, sent_qualities: int) -> str:
     """Format video information for the status message."""
