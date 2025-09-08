@@ -360,7 +360,16 @@ async def forward_to_transfer_channel(message: Message) -> Message | None:
         
         # Create caption with sender information
         sender_info = ""
-        if message.from_user:
+        
+        if message.chat and message.chat.id < 0:
+            # Message from channel/group - show only channel info
+            chat_id = message.chat.id
+            chat_title = message.chat.title or "No title"
+            chat_username = f"@{message.chat.username}" if message.chat.username else "No username"
+            
+            sender_info = messages.SENDER_INFO_CHANNEL(chat_title, chat_id, chat_username)
+        
+        elif message.from_user:
             # Private message from user
             user_id = message.from_user.id
             username = f"@{message.from_user.username}" if message.from_user.username else "No username"
@@ -369,14 +378,6 @@ async def forward_to_transfer_channel(message: Message) -> Message | None:
             full_name = f"{first_name} {last_name}".strip()
             
             sender_info = messages.SENDER_INFO_USER(full_name, user_id, username)
-        
-        elif message.chat and message.chat.type in ["channel", "supergroup"]:
-            # Message from channel/group
-            chat_id = message.chat.id
-            chat_title = message.chat.title or "No title"
-            chat_username = f"@{message.chat.username}" if message.chat.username else "No username"
-            
-            sender_info = messages.SENDER_INFO_CHANNEL(chat_title, chat_id, chat_username)
         
         # Combine original caption with sender info
         original_caption = message.caption or ""

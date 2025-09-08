@@ -141,6 +141,18 @@ async def cleanup_scheduled_messages() -> None:
         
     logger.info(f"[🧹] Cleaning up {len(State.video_info)} remaining scheduled messages during shutdown...")
     
+    # Ensure userbot is started for deletion during shutdown
+    started_temp_userbot = False
+    if State.userbot:
+        try:
+            await State.userbot.start()
+            started_temp_userbot = True
+            logger.info("[🔌] Userbot started temporarily for shutdown cleanup.")
+        except Exception as start_err:
+            logger.warning(f"[⚠️] Could not start userbot for shutdown cleanup (may already be running/stopped): {start_err}")
+    else:
+        logger.warning("[⚠️] Userbot client missing; cannot delete scheduled messages during shutdown.")
+    
     # Create a copy to avoid modification during iteration (though cleanup removes items)
     items_to_cleanup = list(State.video_info.items()) 
     
@@ -151,6 +163,14 @@ async def cleanup_scheduled_messages() -> None:
         clean_up_tracking_info(transfer_msg_id, user_or_channel_data)
     
     logger.info("[✅] Shutdown cleanup of scheduled messages completed.")
+
+    # Stop userbot if we started it here
+    if started_temp_userbot:
+        try:
+            await State.userbot.stop()
+            logger.info("[🔌] Userbot stopped after shutdown cleanup.")
+        except Exception as stop_err:
+            logger.warning(f"[⚠️] Error stopping userbot after shutdown cleanup: {stop_err}")
 
 async def run_periodic_cleanup_task():
     """Periodically checks for timed-out videos and polls scheduled videos by copying to Junk Channel."""

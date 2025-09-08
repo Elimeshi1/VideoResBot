@@ -74,14 +74,19 @@ async def process_video_handler(client: Client, message: Message) -> None:
         is_banned, ban_reason = db.is_user_banned(user_id)
         if is_banned:
             logger.warning(f"[🚫] Banned user {user_id} ({user_name}) attempted to send video")
-            await message.reply_text(messages.USER_BANNED(ban_reason), reply_markup=ReplyKeyboardRemove())
+            await State.bot.send_message(
+                chat_id=message.chat.id,
+                text=messages.USER_BANNED(ban_reason),
+                reply_markup=ReplyKeyboardRemove()
+            )
             return
         
         # Check if user has configured a channel
         if not db.has_user_channel(user_id):
             logger.info(f"[📺] User {user_id} ({user_name}) needs to set up channel first")
-            await message.reply_text(
-                messages.CHANNEL_SETUP_REQUIRED,
+            await State.bot.send_message(
+                chat_id=message.chat.id,
+                text=messages.CHANNEL_SETUP_REQUIRED,
                 reply_markup=ReplyKeyboardRemove()
             )
             return
@@ -96,7 +101,9 @@ async def process_video_handler(client: Client, message: Message) -> None:
                 State.active_users.discard(user_id)
         
         # Send immediate acknowledgment message
-        status_message = await message.reply_text(messages.VIDEO_RECEIVED, reply_markup=ReplyKeyboardRemove())
+        logger.info(f"[🔍] Creating status message for user {user_id}")
+        status_message = await message.reply_text(messages.VIDEO_RECEIVED)
+        logger.info(f"[✅] Status message created: ID={status_message.id}, Chat={status_message.chat.id}")
         
         # Initialize database for premium check
         is_premium = db.is_user_premium(user_id)
@@ -127,9 +134,9 @@ async def process_video_handler(client: Client, message: Message) -> None:
             logger.info(f"[📩] Received video from user {user_id} ({user_name})")
             transfer_msg = await forward_to_transfer_channel(message)
             if not transfer_msg:
-                 await status_message.edit_text(messages.FAILED_INITIATE_PROCESS)
-                 await cleanup_and_process_next(user_id, is_channel=False)
-                 return
+                await status_message.edit_text(messages.FAILED_INITIATE_PROCESS)
+                await cleanup_and_process_next(user_id, is_channel=False)
+                return
             transfer_msg_id = transfer_msg.id
             
             if transfer_msg.video and transfer_msg.video.alternative_videos:
@@ -187,9 +194,7 @@ async def process_video_handler(client: Client, message: Message) -> None:
                 
             # Update message with processing info
             estimated_time = calculate_processing_time(message.video.duration, message.video.height)
-            await status_message.edit_text(
-                messages.PROCESSING_VIDEO(estimated_time)
-            )
+            await status_message.edit_text(messages.PROCESSING_VIDEO(estimated_time))
             
             # Track progress ONLY after successful scheduling
             await track_video_progress(
@@ -215,7 +220,11 @@ async def process_video_handler(client: Client, message: Message) -> None:
         try:
             # Use the status_message if available, otherwise reply to original message
             msg_to_reply = status_message if 'status_message' in locals() else message
-            await msg_to_reply.reply_text(messages.CRITICAL_PROCESS_ERROR, reply_markup=ReplyKeyboardRemove())
+            await State.bot.send_message(
+                chat_id=msg_to_reply.chat.id,
+                text=messages.CRITICAL_PROCESS_ERROR,
+                reply_markup=ReplyKeyboardRemove()
+            )
         except Exception as nested_e:
             logger.error(f"[❌] Error sending critical error message: {nested_e}")
         finally:
