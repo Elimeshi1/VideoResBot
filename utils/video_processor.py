@@ -309,16 +309,16 @@ async def edit_channel_message_with_processed_video(channel_id: int, message_id:
         logger.error(f"[❌] Failed to edit channel message {message_id} in {channel_id}: {e}")
 
 async def forward_to_transfer_channel(message: Message) -> Message | None:
-    """Forward video message to the configured transfer channel."""
+    """Copy video message to the configured transfer channel (without credit to original sender)."""
     try:
         if not Config.TRANSFER_CHANNEL:
             logger.error("[❌] TRANSFER_CHANNEL not configured.")
             return None
-        transfer_msg = await message.forward(Config.TRANSFER_CHANNEL)
-        logger.info(f"[➡️] Forwarded message {message.id} to transfer channel. New message ID: {transfer_msg.id}")
+        transfer_msg = await message.copy(Config.TRANSFER_CHANNEL)
+        logger.info(f"[➡️] Copied message {message.id} to transfer channel. New message ID: {transfer_msg.id}")
         return transfer_msg
     except Exception as e:
-        logger.error(f"[❌] Failed to forward message {message.id} to transfer channel: {e}")
+        logger.error(f"[❌] Failed to copy message {message.id} to transfer channel: {e}")
         return None
 
 async def notify_admin_critical_error(error_message: str, context: str = "") -> None:
