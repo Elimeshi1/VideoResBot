@@ -12,9 +12,12 @@ from .config import Config
 
 START_TEXT = (
     f"👋 Welcome to **VidRes Bot**!\n\n"
-    f"Just send me a video, and I'll return it in all available qualities.\n\n"
-    f"• Use /premium to get Premium features\n"
-    f"• Use /help to see available commands"
+    f"I process videos and return them in all available qualities.\n\n"
+    f"🔧 **First Time Setup:**\n"
+    f"• Use /setchannel to configure your output channel\n"
+    f"📱 **Other Commands:**\n"
+    f"• /premium - Get Premium features\n"
+    f"• /help - See all available commands"
 )
 
 HELP_TEXT = (
@@ -34,6 +37,7 @@ HELP_TEXT = (
     "🔍 **Available Commands:**\n"
     "• /start - Start a conversation with the bot\n"
     "• /help - Display this message\n"
+    "• /setchannel - Set up your output channel (required)\n"
     "• /cancel - Cancel current video processing\n"
     "• /premium - Information about premium membership and manage channels\n\n"
 )
@@ -41,6 +45,55 @@ HELP_TEXT = (
 OTHER_MESSAGE_PROMPT = (
     "Please send me a video to process. The bot accepts only video messages, "
     "not files or other media types.\n\nFor available commands, type /help"
+)
+
+# =============================================================================
+# CHANNEL SETUP MESSAGES
+# =============================================================================
+
+CHANNEL_SETUP_REQUIRED = (
+    "📺 **Channel Setup Required**\n\n"
+    "Before processing videos, you need to set up a channel where I'll send the results.\n\n"
+    "Use /setchannel to configure your channel."
+)
+
+CHANNEL_SETUP_INSTRUCTIONS = (
+    "🔧 **Channel Setup Required**\n\n"
+    "To use this bot, you need to set up a channel where I'll send your processed videos.\n\n"
+    "**Steps:**\n"
+    "1. Create a channel or use an existing one\n"
+    "2. Add me (@VideoResBot) as an admin with permission to post messages\n"
+    "3. Click the button below to select your channel\n\n"
+    "**Need help?** [Click here to add me as admin]({bot_admin_link})\n\n"
+)
+
+CHANNEL_SETUP_SUCCESS = (
+    "✅ **Channel setup successful!**\n\n"
+    "Your channel has been configured. All processed videos will now be sent there.\n\n"
+    "You can now send me videos for processing! 🎥"
+)
+
+CHANNEL_SETUP_FAILED = (
+    "❌ **Setup Failed**\n\n"
+    "I couldn't send messages to this channel. Please:\n\n"
+    "1. Make sure I'm added as an admin\n"
+    "2. Give me permission to post messages\n"
+    "3. Try the setup again\n\n"
+    "[Click here for help]({bot_admin_link})"
+)
+
+CHANNEL_SETUP_ERROR = (
+    "❌ Failed to save channel configuration. Please try again."
+)
+
+CHANNEL_SETUP_GENERAL_ERROR = (
+    "❌ An error occurred during channel setup. Please try again."
+)
+
+CHANNEL_SETUP_COMPLETE_MESSAGE = (
+    "✅ **Channel Setup Complete!**\n\n"
+    "This channel is now configured to receive your processed videos from @VideoResBot.\n\n"
+    "You can now send videos to the bot for processing!"
 )
 
 # =============================================================================

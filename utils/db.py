@@ -21,9 +21,6 @@ class Database:
             self.cursor = self.conn.cursor()
             self._create_tables()
             
-            # Ensure all columns exist in existing tables
-            self._add_ban_columns_to_users()
-            
             logger.info(f"[✅] Database initialized successfully at {os.path.abspath(self.DB_FILE)}")
         except Exception as e:
             logger.error(f"[❌] Database initialization error: {e}")
@@ -46,7 +43,10 @@ class Database:
                 premium_expiry TIMESTAMP,
                 created_at TIMESTAMP,
                 updated_at TIMESTAMP,
-                max_channels INTEGER DEFAULT 0
+                max_channels INTEGER DEFAULT 0,
+                is_banned BOOLEAN NOT NULL DEFAULT 0,
+                ban_reason TEXT,
+                user_channel_id INTEGER
             )
             ''')
             
@@ -61,42 +61,10 @@ class Database:
             )
             ''')
             
-            # Add new columns to existing users table if they don't exist
-            self._add_ban_columns_to_users()
             
             self.conn.commit()
         except Exception as e:
             logger.error(f"[❌] Error creating database tables: {e}")
-            
-    def _add_ban_columns_to_users(self):
-        """Add ban-related columns to existing users table if they don't exist"""
-        try:
-            # Check if is_banned column exists
-            self.cursor.execute("PRAGMA table_info(users)")
-            columns = [column[1] for column in self.cursor.fetchall()]
-            
-            logger.info(f"[📋] Current users table columns: {columns}")
-            
-            # Add is_banned column if it doesn't exist
-            if 'is_banned' not in columns:
-                self.cursor.execute('''
-                ALTER TABLE users ADD COLUMN is_banned BOOLEAN NOT NULL DEFAULT 0
-                ''')
-                logger.info("[✅] Added is_banned column to users table")
-            else:
-                logger.info("[ℹ️] is_banned column already exists in users table")
-            
-            # Add ban_reason column if it doesn't exist
-            if 'ban_reason' not in columns:
-                self.cursor.execute('''
-                ALTER TABLE users ADD COLUMN ban_reason TEXT
-                ''')
-                logger.info("[✅] Added ban_reason column to users table")
-            else:
-                logger.info("[ℹ️] ban_reason column already exists in users table")
-                
-        except Exception as e:
-            logger.error(f"[❌] Error adding ban columns to users table: {e}")
             
     def _ensure_connection(self) -> bool:
         """Ensure database connection is active, reconnect if needed"""
@@ -110,7 +78,7 @@ class Database:
                 
                 self.conn = sqlite3.connect(self.DB_FILE)
                 self.cursor = self.conn.cursor()
-                self._create_tables()  # Ensure tables exist and add new columns
+                self._create_tables()  # Ensure tables exist
                 logger.info("[🔄] Database connection reestablished")
                 return True
             except Exception as e:
@@ -528,6 +496,62 @@ class Database:
         except Exception as e:
             logger.error(f"[❌] Error checking ban status for user {user_id}: {e}")
             return False, None
+
+    def set_user_channel(self, user_id: int, channel_id: int) -> bool:
+        """Set the user's channel for receiving processed videos"""
+        try:
+            if not self._ensure_connection():
+                return False
+            
+            now = datetime.now().isoformat()
+            
+            # Check if user exists, if not create them
+            self.cursor.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+            exists = self.cursor.fetchone()
+            
+            if exists:
+                # Update existing user
+                self.cursor.execute(
+                    "UPDATE users SET user_channel_id = ?, updated_at = ? WHERE user_id = ?",
+                    (channel_id, now, user_id)
+                )
+            else:
+                # Create new user with channel
+                self.cursor.execute(
+                    "INSERT INTO users (user_id, user_channel_id, created_at, updated_at) VALUES (?, ?, ?, ?)",
+                    (user_id, channel_id, now, now)
+                )
+            
+            self.conn.commit()
+            logger.info(f"[✅] Set channel {channel_id} for user {user_id}")
+            return True
+        except Exception as e:
+            logger.error(f"[❌] Error setting channel for user {user_id}: {e}")
+            return False
+    
+    def get_user_channel(self, user_id: int) -> Optional[int]:
+        """Get the user's configured channel ID"""
+        try:
+            if not self._ensure_connection():
+                return None
+            
+            self.cursor.execute(
+                "SELECT user_channel_id FROM users WHERE user_id = ?",
+                (user_id,)
+            )
+            result = self.cursor.fetchone()
+            
+            if result and result[0]:
+                return int(result[0])
+            return None
+        except Exception as e:
+            logger.error(f"[❌] Error getting channel for user {user_id}: {e}")
+            return None
+    
+    def has_user_channel(self, user_id: int) -> bool:
+        """Check if user has a configured channel"""
+        channel_id = self.get_user_channel(user_id)
+        return channel_id is not None
 
     def close(self):
         """Close the database connection"""

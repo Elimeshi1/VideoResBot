@@ -57,23 +57,37 @@ async def track_video_progress(transfer_msg_id: int, user_id: int, scheduled_msg
 
 
 async def send_original_video(msg: Message, user_id: int) -> bool:
-    """Send the original video quality back to the user."""
+    """Send the original video quality back to the user's channel."""
+    from utils.db import db
     try:
+        # Get user's configured channel
+        user_channel = db.get_user_channel(user_id)
+        if not user_channel:
+            logger.error(f"[❌] User {user_id} has no configured channel for receiving videos")
+            return False
+        
         # Caption with original quality info and hint about settings button
         original_caption = f"Original quality: {msg.video.height}p\n\nℹ️ You can also tap on the video settings button to select different qualities!"
-        await msg.copy(user_id, caption=original_caption)
-        logger.info(f"[✅] Sent original video ({msg.video.height}p) to user {user_id}")
+        await msg.copy(user_channel, caption=original_caption)
+        logger.info(f"[✅] Sent original video ({msg.video.height}p) to user {user_id}'s channel {user_channel}")
         return True
     except Exception as e:
-        logger.error(f"[❌] Failed to send original video to user {user_id}: {e}")
+        logger.error(f"[❌] Failed to send original video to user {user_id}'s channel: {e}")
         return False
 
 async def send_alternative_videos(msg: Message, user_id: int) -> int:
-    """Send available alternative video qualities back to the user."""
+    """Send available alternative video qualities back to the user's channel."""
+    from utils.db import db
     sent_count = 0
     if not msg.video or not msg.video.alternative_videos:
          logger.info(f"[ℹ️] No video or alternative videos found for message {msg.id}")
          return 0
+    
+    # Get user's configured channel
+    user_channel = db.get_user_channel(user_id)
+    if not user_channel:
+        logger.error(f"[❌] User {user_id} has no configured channel for receiving videos")
+        return 0
          
     logger.info(f"[ℹ️] Found {len(msg.video.alternative_videos)} alternative videos for message {msg.id}")
     try:
@@ -85,18 +99,18 @@ async def send_alternative_videos(msg: Message, user_id: int) -> int:
                 quality = f"{video.height}p" if video.height else f"Alternative {i+1}"
                 caption = f"📹 {quality}"
                 await State.bot.send_video(
-                    user_id,
+                    user_channel,
                     video.file_id,
                     caption=caption
                 )
                 sent_count += 1
-                logger.info(f"[✅] Sent {quality} video to user {user_id}")
+                logger.info(f"[✅] Sent {quality} video to user {user_id}'s channel {user_channel}")
             except Exception as send_err:
                 quality_label = f"{video.height}p" if video.height else f"#{i+1}"
-                logger.error(f"[❌] Failed to send alternative video {quality_label} to user {user_id}: {send_err}")
+                logger.error(f"[❌] Failed to send alternative video {quality_label} to user {user_id}'s channel: {send_err}")
         return sent_count
     except Exception as e:
-        logger.error(f"[❌] Error iterating or sending alternative videos for user {user_id}: {e}")
+        logger.error(f"[❌] Error iterating or sending alternative videos for user {user_id}'s channel: {e}")
         return sent_count # Return count sent so far
 
 async def handle_processed_video(transfer_msg_id: int, processed_junk_msg: Message) -> None:

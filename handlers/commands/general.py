@@ -1,5 +1,5 @@
 from pyrogram import Client
-from pyrogram.types import Message, ReplyKeyboardRemove
+from pyrogram.types import Message, ReplyKeyboardRemove, ReplyKeyboardMarkup, KeyboardButton, KeyboardButtonRequestChat, ChatPrivileges
 from utils.logger import logger
 from utils.cleanup import delete_scheduled_message, clean_up_tracking_info
 from config.state import State
@@ -258,4 +258,110 @@ async def unban_command_handler(client: Client, message: Message) -> None:
     
     except Exception as e:
         logger.error(f"[❌] Error handling unban command: {e}")
-        await message.reply_text(messages.UNBAN_ERROR, reply_markup=ReplyKeyboardRemove()) 
+        await message.reply_text(messages.UNBAN_ERROR, reply_markup=ReplyKeyboardRemove())
+
+async def channel_setup_command_handler(client: Client, message: Message) -> None:
+    """Handle the /setchannel command to set up user's output channel"""
+    try:
+        user_id = message.from_user.id
+        user_name = message.from_user.first_name
+        
+        # Check if user is banned
+        is_banned, ban_reason = db.is_user_banned(user_id)
+        if is_banned:
+            logger.warning(f"[🚫] Banned user {user_id} ({user_name}) attempted to use /setchannel command")
+            await message.reply_text(messages.USER_BANNED(ban_reason), reply_markup=ReplyKeyboardRemove())
+            return
+        
+        logger.info(f"[🔧] User {user_id} ({user_name}) requested channel setup")
+        
+        # Add user to database if not exists
+        db.add_user(user_id, False)
+        
+        # Create keyboard with channel request button
+        bot_admin_rights = ChatPrivileges(
+            can_post_messages=True,
+            can_edit_messages=True,
+            can_delete_messages=True
+        )
+        
+        request_chat_button = KeyboardButtonRequestChat(
+            button_id=1,
+            chat_is_channel=True,
+            chat_is_created=False,  # Allow existing channels
+            bot_is_member=True,     # Bot must be member
+            bot_administrator_rights=bot_admin_rights  # Bot needs admin rights to post
+        )
+        
+        keyboard = ReplyKeyboardMarkup(
+            [[KeyboardButton("📺 Select Channel", request_chat=request_chat_button)]],
+            resize_keyboard=True,
+            one_time_keyboard=True,
+            placeholder="Choose a channel for receiving processed videos"
+        )
+        
+        setup_text = messages.CHANNEL_SETUP_INSTRUCTIONS.format(bot_admin_link=Config.BOT_ADMIN_LINK)
+        
+        await message.reply_text(
+            setup_text,
+            reply_markup=keyboard,
+            disable_web_page_preview=True
+        )
+        
+    except Exception as e:
+        logger.error(f"[❌] Error handling channel setup command: {e}")
+        await message.reply_text(messages.ERROR_GENERIC, reply_markup=ReplyKeyboardRemove())
+
+async def handle_channel_shared(client: Client, message: Message) -> None:
+    """Handle when user shares a channel using the request chat button"""
+    try:
+        user_id = message.from_user.id
+        user_name = message.from_user.first_name
+        
+        if not message.chat_shared:
+            return
+        
+        shared_chat = message.chat_shared
+        channel_id = shared_chat.chat_id
+        
+        logger.info(f"[📺] User {user_id} ({user_name}) shared channel {channel_id}")
+        
+        # Test if bot can send messages to the channel
+        try:
+            test_msg = await client.send_message(
+                channel_id,
+                messages.CHANNEL_SETUP_COMPLETE_MESSAGE
+            )
+            
+            # Store the channel in database
+            if db.set_user_channel(user_id, channel_id):
+                await message.reply_text(
+                    messages.CHANNEL_SETUP_SUCCESS,
+                    reply_markup=ReplyKeyboardRemove()
+                )
+                logger.info(f"[✅] Successfully set up channel {channel_id} for user {user_id}")
+            else:
+                await message.reply_text(
+                    messages.CHANNEL_SETUP_ERROR,
+                    reply_markup=ReplyKeyboardRemove()
+                )
+                # Delete the test message
+                try:
+                    await client.delete_messages(channel_id, test_msg.id)
+                except:
+                    pass
+                
+        except Exception as send_err:
+            logger.error(f"[❌] Cannot send messages to channel {channel_id}: {send_err}")
+            await message.reply_text(
+                messages.CHANNEL_SETUP_FAILED.format(bot_admin_link=Config.BOT_ADMIN_LINK),
+                reply_markup=ReplyKeyboardRemove(),
+                disable_web_page_preview=True
+            )
+        
+    except Exception as e:
+        logger.error(f"[❌] Error handling shared channel: {e}")
+        await message.reply_text(
+            messages.CHANNEL_SETUP_GENERAL_ERROR,
+            reply_markup=ReplyKeyboardRemove()
+        ) 

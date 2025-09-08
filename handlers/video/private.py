@@ -77,6 +77,15 @@ async def process_video_handler(client: Client, message: Message) -> None:
             await message.reply_text(messages.USER_BANNED(ban_reason), reply_markup=ReplyKeyboardRemove())
             return
         
+        # Check if user has configured a channel
+        if not db.has_user_channel(user_id):
+            logger.info(f"[📺] User {user_id} ({user_name}) needs to set up channel first")
+            await message.reply_text(
+                messages.CHANNEL_SETUP_REQUIRED,
+                reply_markup=ReplyKeyboardRemove()
+            )
+            return
+        
         if user_id in State.active_users:
             user_has_active_entry = any(
                 isinstance(uid, int) and uid == user_id and tid in State.video_info

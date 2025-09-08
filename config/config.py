@@ -52,6 +52,9 @@ class Config:
 
     # --- Database ---
     DATABASE_URL = "data/premium_users.db"
+    
+    # --- Bot Links ---
+    BOT_ADMIN_LINK = "http://t.me/VideoResBot?startchannel&admin"
 
     @classmethod
     def max_video_size_bytes(cls) -> int:
