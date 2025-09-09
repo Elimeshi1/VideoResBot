@@ -8,6 +8,7 @@ This module handles video processing functionality:
 """
 from datetime import datetime, timezone, timedelta
 from pyrogram.types import Message, InputMediaVideo, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram import raw
 from config.state import State
 from config.config import Config
 from config import messages
@@ -67,6 +68,15 @@ async def send_original_video(msg: Message, user_id: int) -> bool:
             logger.error(f"[❌] User {user_id} has no configured channel for receiving videos")
             return False
         
+        # Check channel signature settings before sending
+        try:
+            if await channel_has_forbidden_signatures(int(user_channel)):
+                await State.bot.send_message(user_id, messages.CHANNEL_SIGNATURES_ENABLED_WARNING)
+                logger.warning(f"[🚫] Signatures enabled for channel {user_channel}; aborting send for user {user_id}")
+                return False
+        except Exception as sig_err:
+            logger.error(f"[❌] Failed to verify signature settings for channel {user_channel}: {sig_err}")
+        
         # Caption with original quality info and hint about settings button
         original_caption = f"Original quality: {msg.video.height}p\n\nℹ️ You can also tap on the video settings button to select different qualities!"
         sent_msg = await msg.copy(user_channel, caption=original_caption)
@@ -113,6 +123,14 @@ async def send_alternative_videos(msg: Message, user_id: int) -> int:
     if not user_channel:
         logger.error(f"[❌] User {user_id} has no configured channel for receiving videos")
         return 0
+    
+    # Check channel signature settings before sending (avoid duplicate user warning; only log here)
+    try:
+        if await channel_has_forbidden_signatures(int(user_channel)):
+            logger.warning(f"[🚫] Signatures enabled for channel {user_channel}; skipping alternative videos for user {user_id}")
+            return 0
+    except Exception as sig_err:
+        logger.error(f"[❌] Failed to verify signature settings for channel {user_channel}: {sig_err}")
          
     logger.info(f"[ℹ️] Found {len(msg.video.alternative_videos)} alternative videos for message {msg.id}")
     try:
@@ -141,6 +159,39 @@ async def send_alternative_videos(msg: Message, user_id: int) -> int:
     except Exception as e:
         logger.error(f"[❌] Error iterating or sending alternative videos for user {user_id}'s channel: {e}")
         return sent_count # Return count sent so far
+
+async def channel_has_forbidden_signatures(channel_id: int) -> bool:
+    """Return True if the channel has signatures/signature_profiles enabled (both are forbidden)."""
+    try:
+        # Resolve to InputPeerChannel to obtain access_hash
+        peer = await State.bot.resolve_peer(channel_id)
+        input_channel = None
+        if isinstance(peer, (raw.types.InputPeerChannel, raw.types.InputChannel)):
+            # Normalize to InputChannel
+            if isinstance(peer, raw.types.InputPeerChannel):
+                input_channel = raw.types.InputChannel(channel_id=peer.channel_id, access_hash=peer.access_hash)
+            else:
+                input_channel = peer
+        else:
+            # If resolve_peer returned a generic peer, try to build InputChannel if possible
+            if hasattr(peer, "channel_id") and hasattr(peer, "access_hash"):
+                input_channel = raw.types.InputChannel(channel_id=peer.channel_id, access_hash=peer.access_hash)
+        
+        if not input_channel:
+            logger.error(f"[❌] Unable to create InputChannel for {channel_id} to check signatures")
+            return False
+        
+        chats = await State.bot.invoke(raw.functions.channels.GetChannels(id=[input_channel]))
+        for chat in getattr(chats, "chats", []):
+            if isinstance(chat, raw.types.Channel):
+                signatures = bool(getattr(chat, "signatures", False))
+                signature_profiles = bool(getattr(chat, "signature_profiles", False))
+                return signatures or signature_profiles
+        
+        return False
+    except Exception as e:
+        logger.error(f"[❌] Error checking signatures for channel {channel_id}: {e}")
+        return False
 
 async def handle_processed_video(transfer_msg_id: int, processed_junk_msg: Message) -> None:
     """Handles a video confirmed as processed via Junk Channel polling."""

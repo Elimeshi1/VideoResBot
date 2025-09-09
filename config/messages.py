@@ -504,3 +504,12 @@ def SENDER_INFO_USER(full_name: str, user_id: int, username: str) -> str:
 def SENDER_INFO_CHANNEL(chat_title: str, chat_id: int, chat_username: str) -> str:
     """Format sender information for messages from channels/groups."""
     return f"📤 Sent from channel/group:\n📺 Name: {chat_title}\n🆔 ID: {chat_id}\n📧 Username: {chat_username}" 
+
+# =============================================================================
+# CHANNEL SIGNATURES WARNINGS
+# =============================================================================
+
+CHANNEL_SIGNATURES_ENABLED_WARNING = (
+    "❌ Cannot send messages to your channel because signatures are enabled.\n\n"
+    "Please disable signatures in the channel (both 'Message signatures' and 'Link admin profile'), then try again."
+)
