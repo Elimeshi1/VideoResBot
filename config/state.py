@@ -43,6 +43,12 @@ class State:
     channel_video_queue = channel_video_queue
     active_videos_count_users = active_videos_count_users
     active_videos_count_channels = active_videos_count_channels
+    
+    # Set to track message IDs currently being processed (deduplication)
+    processing_messages: Set[int] = set()
+    
+    # Flag to prevent duplicate handler registration
+    _handlers_registered: bool = False
 
     @classmethod
     def initialize(cls, bot_instance, userbot_instance):

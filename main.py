@@ -64,11 +64,27 @@ async def register_all_handlers() -> None:
     if not State.bot:
         logger.error("Bot client not initialized. Cannot register handlers.")
         return
+    
+    # Check if handlers were already registered
+    if hasattr(State, '_handlers_registered') and State._handlers_registered:
+        logger.warning("[⚠️] Handlers already registered! Skipping duplicate registration.")
+        return
         
+    logger.info("[🔧] Registering handlers...")
     register_command_handlers(State.bot)
     register_payment_handlers(State.bot)
     register_video_handlers(State.bot)
-    logger.info("All handlers registered.")
+    
+    # Mark handlers as registered
+    State._handlers_registered = True
+    
+    # Log number of registered handlers per group
+    for group_id in [1, 2, 3, 4]:
+        if group_id in State.bot.dispatcher.groups:
+            count = len(State.bot.dispatcher.groups[group_id])
+            logger.info(f"[📊] Group {group_id}: {count} handlers registered")
+    
+    logger.info("[✅] All handlers registered successfully.")
 
 async def cleanup_db() -> None:
     """Periodically clean up expired premium memberships and channel subscriptions"""

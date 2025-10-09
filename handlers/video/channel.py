@@ -28,6 +28,20 @@ from utils.queue_manager import (
 
 async def channel_video_handler(client: Client, message: Message) -> None:
     """Handles videos posted in channels where the bot is a member"""
+    # Deduplication: Check if this message is already being processed
+    message_id = message.id
+    channel_id = message.chat.id if message.chat else "unknown"
+    
+    logger.info(f"[🎬] CHANNEL VIDEO HANDLER CALLED: message_id={message_id}, channel_id={channel_id}, currently_processing={len(State.processing_messages)} messages")
+    
+    if message_id in State.processing_messages:
+        logger.warning(f"[⚠️] DUPLICATE DETECTED! Channel message {message_id} from {channel_id} is already being processed. Ignoring.")
+        return
+    
+    # Mark message as being processed
+    State.processing_messages.add(message_id)
+    logger.debug(f"[🔒] Locked channel message {message_id} for processing")
+    
     try:
         # Skip if no video
         if not message.video:
@@ -53,6 +67,10 @@ async def channel_video_handler(client: Client, message: Message) -> None:
         
     except Exception as e:
         logger.error(f"[❌] Error processing video from channel {message.chat.id if message and message.chat else 'unknown'}: {e}", exc_info=True)
+    finally:
+        # Always remove message from processing set
+        State.processing_messages.discard(message_id)
+        logger.debug(f"[🧹] Removed channel message {message_id} from processing set")
 
 async def process_channel_video(message: Message) -> None:
     """Main function to process a channel video, with queue management"""

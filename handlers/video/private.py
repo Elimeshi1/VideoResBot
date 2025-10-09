@@ -66,8 +66,21 @@ async def check_video_format(message: Message, status_message: Message) -> tuple
 
 async def process_video_handler(client: Client, message: Message) -> None:
     """Handles video messages from users in private chats"""
+    # Deduplication: Check if this message is already being processed
+    message_id = message.id
+    user_id = message.from_user.id if message.from_user else "unknown"
+    
+    logger.info(f"[🎬] VIDEO HANDLER CALLED: message_id={message_id}, user_id={user_id}, currently_processing={len(State.processing_messages)} messages")
+    
+    if message_id in State.processing_messages:
+        logger.warning(f"[⚠️] DUPLICATE DETECTED! Message {message_id} from user {user_id} is already being processed. Ignoring.")
+        return
+    
+    # Mark message as being processed
+    State.processing_messages.add(message_id)
+    logger.debug(f"[🔒] Locked message {message_id} for processing")
+    
     try:
-        user_id = message.from_user.id
         user_name = message.from_user.first_name
         
         # Check if user is banned
@@ -239,6 +252,10 @@ async def process_video_handler(client: Client, message: Message) -> None:
                     clean_up_tracking_info(transfer_msg_id, user_id) 
                 except Exception as cleanup_error:
                     logger.error(f"[❌] Error during final cleanup attempt: {cleanup_error}")
+    finally:
+        # Always remove message from processing set
+        State.processing_messages.discard(message_id)
+        logger.debug(f"[🧹] Removed message {message_id} from processing set")
 
 def remove_user_from_active_if_no_videos(user_id: int):
     """Removes user from State.active_users only if they have no active videos left."""
