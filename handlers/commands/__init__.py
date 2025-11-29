@@ -1,7 +1,7 @@
 """Command handlers package"""
 
 from pyrogram import Client, filters
-from pyrogram.handlers import MessageHandler, ChatMemberUpdatedHandler
+from pyrogram.handlers import MessageHandler, ChatMemberUpdatedHandler, CallbackQueryHandler
 from utils.logger import logger
 
 from .general import (
@@ -15,7 +15,8 @@ from .general import (
     add_premium_command_handler,
     channel_setup_command_handler,
     handle_channel_shared,
-    handle_chat_member_updated
+    handle_chat_member_updated,
+    ban_toggle_callback_handler
 )
 from .premium import (
     handle_premium_purchase_command,
@@ -33,6 +34,7 @@ __all__ = [
     "channel_setup_command_handler",
     "handle_channel_shared",
     "handle_chat_member_updated",
+    "ban_toggle_callback_handler",
     # Premium Commands
     "handle_premium_purchase_command",
     # Catch-all
@@ -65,6 +67,12 @@ def register_command_handlers(app: Client):
     # Chat member updated handler (for completing channel setup when bot is promoted to admin)
     app.add_handler(ChatMemberUpdatedHandler(
         handle_chat_member_updated
+    ), group=2)
+    
+    # Ban toggle callback handler (for inline button in transfer channel)
+    app.add_handler(CallbackQueryHandler(
+        ban_toggle_callback_handler,
+        filters.regex(r"^ban_toggle_\d+$")
     ), group=2)
     
     app.add_handler(MessageHandler(

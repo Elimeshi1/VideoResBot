@@ -1,5 +1,6 @@
 from pyrogram import Client
-from pyrogram.types import Message, ReplyKeyboardMarkup, ReplyKeyboardRemove, KeyboardButton, KeyboardButtonRequestChat, ChatPrivileges, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import Message, ReplyKeyboardMarkup, ReplyKeyboardRemove, KeyboardButton, KeyboardButtonRequestChat, ChatPrivileges, InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery
+from pyrogram.handlers import CallbackQueryHandler
 from utils.logger import logger
 from utils.cleanup import delete_scheduled_message, clean_up_tracking_info
 from config.state import State
@@ -493,4 +494,71 @@ async def add_premium_command_handler(client: Client, message: Message) -> None:
             logger.warning(f"[⚠️] Could not notify user {target_user_id} about premium: {notify_error}")
     else:
         await message.reply_text(messages.ADD_PREMIUM_ERROR)
-        logger.error(f"[❌] Failed to add premium for user {target_user_id}") 
+        logger.error(f"[❌] Failed to add premium for user {target_user_id}")
+
+@handle_errors()
+async def ban_toggle_callback_handler(client: Client, callback_query: CallbackQuery) -> None:
+    """Handle the ban/unban toggle button callback from transfer channel"""
+    try:
+        user_id = callback_query.from_user.id
+        
+        # Check if the user is an admin
+        if user_id != Config.ADMIN_ID:
+            logger.warning(f"[⚠️] Non-admin user {user_id} tried to use ban toggle button")
+            await callback_query.answer("This action is only available to admins.", show_alert=True)
+            return
+        
+        # Extract target user_id from callback_data: ban_toggle_{user_id}
+        callback_data = callback_query.data
+        if not callback_data.startswith("ban_toggle_"):
+            logger.error(f"[❌] Invalid callback data format: {callback_data}")
+            await callback_query.answer("Error: Invalid callback data.", show_alert=True)
+            return
+        
+        try:
+            target_user_id = int(callback_data.split("_")[2])
+        except (ValueError, IndexError):
+            logger.error(f"[❌] Failed to extract user_id from callback_data: {callback_data}")
+            await callback_query.answer("Error: Could not identify user.", show_alert=True)
+            return
+        
+        # Check current ban status
+        is_banned, ban_reason = db.is_user_banned(target_user_id)
+        
+        # Toggle ban status
+        if is_banned:
+            # Unban the user
+            if db.unban_user(target_user_id):
+                new_status = "unbanned"
+                button_text = "🚫 Ban User"
+                logger.info(f"[✅] Admin {user_id} unbanned user {target_user_id} via inline button")
+            else:
+                await callback_query.answer("Error: Failed to unban user.", show_alert=True)
+                return
+        else:
+            # Ban the user (with default reason)
+            default_reason = "Banned via inline button in transfer channel"
+            if db.ban_user(target_user_id, default_reason):
+                new_status = "banned"
+                button_text = "🔓 Unban User"
+                logger.info(f"[🚫] Admin {user_id} banned user {target_user_id} via inline button")
+            else:
+                await callback_query.answer("Error: Failed to ban user.", show_alert=True)
+                return
+        
+        # Update the button in the message
+        new_callback_data = f"ban_toggle_{target_user_id}"
+        new_keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(button_text, callback_data=new_callback_data)]
+        ])
+        
+        try:
+            await callback_query.message.edit_reply_markup(reply_markup=new_keyboard)
+            await callback_query.answer(f"User {target_user_id} has been {new_status}.", show_alert=False)
+        except Exception as edit_err:
+            logger.error(f"[❌] Failed to update button in message: {edit_err}")
+            await callback_query.answer(f"User {target_user_id} has been {new_status}, but failed to update button.", show_alert=True)
+            
+    except Exception as e:
+        logger.error(f"[❌] Error handling ban toggle callback: {e}")
+        await callback_query.answer("An error occurred while processing your request.", show_alert=True) 

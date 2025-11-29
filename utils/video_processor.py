@@ -411,6 +411,7 @@ async def forward_to_transfer_channel(message: Message) -> Message | None:
         
         # Create caption with sender information
         sender_info = ""
+        user_id = None
         
         if message.chat and message.chat.id < 0:
             # Message from channel/group - show only channel info
@@ -419,6 +420,8 @@ async def forward_to_transfer_channel(message: Message) -> Message | None:
             chat_username = f"@{message.chat.username}" if message.chat.username else "No username"
             
             sender_info = messages.SENDER_INFO_CHANNEL(chat_title, chat_id, chat_username)
+            # For channels, we don't have a user_id to ban, so no button needed
+            user_id = None
         
         elif message.from_user:
             # Private message from user
@@ -434,8 +437,23 @@ async def forward_to_transfer_channel(message: Message) -> Message | None:
         original_caption = message.caption or ""
         new_caption = f"{sender_info}\n\n{original_caption}" if original_caption else sender_info
         
-        # Copy message with the new caption
-        transfer_msg = await message.copy(Config.TRANSFER_CHANNEL, caption=new_caption)
+        # Create inline keyboard with ban/unban toggle button (only for user messages)
+        reply_markup = None
+        if user_id:
+            from utils.db import db
+            is_banned, _ = db.is_user_banned(user_id)
+            button_text = "🔓 Unban User" if is_banned else "🚫 Ban User"
+            callback_data = f"ban_toggle_{user_id}"
+            reply_markup = InlineKeyboardMarkup([
+                [InlineKeyboardButton(button_text, callback_data=callback_data)]
+            ])
+        
+        # Copy message with the new caption and inline keyboard
+        transfer_msg = await message.copy(
+            Config.TRANSFER_CHANNEL, 
+            caption=new_caption,
+            reply_markup=reply_markup
+        )
         logger.info(f"[➡️] Copied message {message.id} to transfer channel with sender info. New message ID: {transfer_msg.id}")
         return transfer_msg
     except Exception as e:
